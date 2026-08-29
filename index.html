@@ -1,0 +1,3366 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#090d16" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Study Flow" />
+<link rel="manifest" href="manifest.webmanifest" />
+<title>Study Flow · Akıllı Ders Planlayıcı</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #090d16;
+    --grid-hour: rgba(255,255,255,0.10);
+    --grid-quarter: rgba(255,255,255,0.045);
+    --border: rgba(255,255,255,0.10);
+  }
+
+  *{ box-sizing: border-box; }
+  html, body{ height:100%; margin:0; overflow:hidden; }
+  body{
+    background:
+      radial-gradient(circle at 12% -10%, rgba(99,102,241,0.16), transparent 42%),
+      radial-gradient(circle at 90% -10%, rgba(217,70,239,0.12), transparent 40%),
+      radial-gradient(circle at 50% 110%, rgba(56,189,248,0.08), transparent 45%),
+      var(--bg);
+    color: #e6e9f5;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .font-display{ font-family: 'Sora', 'Inter', sans-serif; }
+  .tabular-nums{ font-variant-numeric: tabular-nums; }
+
+  *{ scrollbar-width: thin; scrollbar-color: rgba(139,92,246,0.35) transparent; }
+  ::-webkit-scrollbar{ width:7px; height:7px; }
+  ::-webkit-scrollbar-track{ background: transparent; }
+  ::-webkit-scrollbar-thumb{ background: rgba(139,92,246,0.28); border-radius:99px; }
+  ::-webkit-scrollbar-thumb:hover{ background: rgba(139,92,246,0.55); }
+
+  .neon-text{ text-shadow: 0 0 12px rgba(139,92,246,0.55), 0 0 28px rgba(99,102,241,0.25); }
+  .neon-ring{ filter: drop-shadow(0 0 6px rgba(139,92,246,0.75)) drop-shadow(0 0 16px rgba(99,102,241,0.45)); }
+  .glow-dot{ box-shadow: 0 0 8px currentColor, 0 0 18px currentColor; }
+
+  .day-col{
+    position: relative;
+    border-left: 1px solid var(--border);
+    background-image:
+      repeating-linear-gradient(to bottom, var(--grid-hour) 0, var(--grid-hour) 1px, transparent 1px, transparent 64px),
+      repeating-linear-gradient(to bottom, var(--grid-quarter) 0, var(--grid-quarter) 1px, transparent 1px, transparent 16px);
+  }
+  .day-col.is-today-col{ background-color: rgba(99,102,241,0.045); }
+
+  .now-line{ position:absolute; left:0; right:0; height:0; border-top:2px solid #fb7185; z-index:20; pointer-events:none; }
+  .now-dot{ position:absolute; width:9px; height:9px; border-radius:50%; left:-4.5px; top:-5px; background:#fb7185; color:#fb7185; }
+
+  .event-block{
+    position:absolute; left:5px; right:5px;
+    border-radius:14px; padding:6px 9px;
+    overflow:hidden; cursor:pointer; user-select:none;
+    color:#f5f3ff; font-size:11.5px; line-height:1.25;
+    border:1px solid rgba(255,255,255,0.16);
+    backdrop-filter: blur(6px);
+    transition: box-shadow .25s ease, transform .12s ease;
+    z-index: 5;
+  }
+  .event-block:hover{ z-index:15; transform: translateY(-1px); }
+  .event-block:active{ cursor: grabbing; }
+  .event-block .blk-title{ font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .event-block .blk-sub{ font-size:10px; opacity:.82; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .event-block .blk-del{
+    position:absolute; top:4px; right:4px; width:17px; height:17px; border-radius:50%;
+    background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.18);
+    color:#fff; font-size:11px; line-height:15px; text-align:center; cursor:pointer;
+    opacity:.75; transition: all .2s ease;
+  }
+  .event-block .blk-del:hover{ opacity:1; background:rgba(244,63,94,0.75); transform: scale(1.08); }
+  .resize-handle{ position:absolute; left:0; right:0; bottom:0; height:8px; cursor:ns-resize; }
+  .ghost-block{
+    background: rgba(139,92,246,0.28) !important;
+    border: 1.5px dashed rgba(167,139,250,0.9) !important;
+    pointer-events:none;
+  }
+
+  .day-header{ text-align:center; padding:12px 0 10px; border-left:1px solid var(--border); }
+  .day-header .dh-name{ font-size:10.5px; color:#8b90ab; text-transform:uppercase; letter-spacing:.08em; font-weight:600; }
+  .day-header .dh-num{ font-size:17px; font-weight:800; margin-top:4px; display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:12px; }
+  .day-header.is-today .dh-num{ background: linear-gradient(135deg,#6366f1,#a855f7); box-shadow: 0 0 16px rgba(139,92,246,0.6); }
+
+  .time-label{ position:absolute; right:10px; font-size:10px; color:#767c99; transform: translateY(-50%); }
+
+  .modal-backdrop{
+    position:fixed; inset:0; z-index:50;
+    display:flex; align-items:center; justify-content:center;
+    background: rgba(4,5,11,0.65); backdrop-filter: blur(6px);
+    opacity:0; visibility:hidden; transition: opacity .25s ease;
+  }
+  .modal-backdrop:not(.hidden){ opacity:1; visibility:visible; }
+  .modal-box{ transform: translateY(14px) scale(.97); transition: transform .25s cubic-bezier(.2,.9,.3,1.2); }
+  .modal-backdrop:not(.hidden) .modal-box{ transform: translateY(0) scale(1); }
+
+  .field-input{
+    width:100%; background: rgba(255,255,255,0.05); border:1px solid var(--border);
+    border-radius:14px; padding:.62rem .85rem; color:#f1f2fa; outline:none;
+    transition: border-color .2s ease, box-shadow .2s ease; margin-top:6px;
+  }
+  .field-input:focus{ border-color:#8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,0.22); }
+  .field-input.err{ border-color:#fb7185; box-shadow: 0 0 0 3px rgba(251,113,133,0.18); }
+
+  select.field-input option {
+    background-color: #0f172a;
+    color: #f1f2fa;
+    padding: 8px;
+  }
+
+  .color-dot{ width:26px; height:26px; border-radius:50%; border:2px solid transparent; cursor:pointer; transition: all .2s ease; }
+  .color-dot.selected{ border-color:#fff; transform: scale(1.12); box-shadow: 0 0 10px rgba(255,255,255,0.35); }
+
+  .repeat-card{ background: rgba(255,255,255,0.035); border:1px solid var(--border); border-radius:18px; padding:13px 14px; }
+  .repeat-item{ display:flex; align-items:center; gap:8px; font-size:11.5px; color:#9aa0bd; padding:4px 6px; border-radius:8px; transition: background .2s ease; }
+  .repeat-item:hover{ background: rgba(255,255,255,0.06); }
+  .routine-day-picker{ margin-top:9px; padding:8px; border-radius:18px; background:rgba(7,10,20,.58); border:1px solid rgba(255,255,255,.08); box-shadow:inset 0 1px 0 rgba(255,255,255,.025); }
+  .routine-day-option{ position:relative; display:flex; align-items:center; min-height:44px; padding:0 10px; border-radius:13px; border:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.025); color:#8f96ad; cursor:pointer; user-select:none; transition:all .2s ease; overflow:hidden; }
+  .routine-day-option + .routine-day-option{ margin-top:6px; }
+  .routine-day-option:hover{ color:#f8fafc; background:rgba(255,255,255,.05); border-color:rgba(167,139,250,.24); transform:translateX(2px); }
+  .routine-day-option input{ position:absolute; opacity:0; pointer-events:none; }
+  .routine-day-option .day-name{ display:flex; align-items:center; gap:10px; min-width:0; flex:1; }
+  .routine-day-option .day-icon{ width:28px; height:28px; flex-shrink:0; border-radius:9px; display:inline-flex; align-items:center; justify-content:center; background:rgba(255,255,255,.055); color:#94a3b8; font-size:8.5px; font-weight:900; letter-spacing:.02em; border:1px solid rgba(255,255,255,.06); transition:all .2s ease; }
+  .routine-day-option .day-label{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:11px; font-weight:800; letter-spacing:.01em; }
+  .routine-day-option .day-check{ width:20px; height:20px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; color:transparent; background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.10); font-size:11px; font-weight:900; transition:all .2s ease; }
+  .routine-day-option:has(input:checked){ color:#fff; background:linear-gradient(90deg,rgba(245,158,11,.18),rgba(168,85,247,.08)); border-color:rgba(251,191,36,.38); box-shadow:inset 3px 0 0 #f59e0b, 0 8px 20px rgba(245,158,11,.07); }
+  .routine-day-option:has(input:checked) .day-icon{ background:rgba(245,158,11,.16); color:#fbbf24; border-color:rgba(251,191,36,.18); box-shadow:0 0 12px rgba(245,158,11,.10); }
+  .routine-day-option:has(input:checked) .day-check{ color:#1c1917; background:#fbbf24; border-color:#fbbf24; box-shadow:0 0 12px rgba(251,191,36,.20); }
+  .routine-day-option.is-every{ min-height:52px; justify-content:space-between; padding:0 12px; margin-bottom:8px; background:linear-gradient(135deg,rgba(99,102,241,.13),rgba(168,85,247,.10)); border-color:rgba(139,92,246,.25); box-shadow:inset 0 1px 0 rgba(255,255,255,.035); }
+  .routine-day-option.is-every + .routine-day-option{ margin-top:0; }
+  .routine-day-option.is-every .day-icon{ width:32px; height:32px; border-radius:10px; background:linear-gradient(135deg,rgba(99,102,241,.20),rgba(168,85,247,.18)); color:#c4b5fd; border-color:rgba(167,139,250,.18); }
+  .routine-day-option.is-every .day-label{ font-size:12px; }
+  .routine-day-option.is-every:has(input:checked){ background:linear-gradient(135deg,rgba(245,158,11,.24),rgba(249,115,22,.12)); border-color:rgba(251,191,36,.44); box-shadow:inset 3px 0 0 #f59e0b, 0 10px 24px rgba(245,158,11,.09); }
+  .routine-day-option.is-every:has(input:checked) .day-icon{ background:rgba(251,191,36,.18); color:#fbbf24; border-color:rgba(251,191,36,.22); }
+  .routine-picker-heading{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:2px; }
+  .routine-picker-badge{ font-size:9px; font-weight:800; color:#94a3b8; padding:4px 8px; border-radius:999px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); }
+  .routine-picker-note{ font-size:9px; line-height:1.45; color:#64748b; margin-top:9px; }
+  .repeat-item .dot{ width:6px; height:6px; border-radius:50%; background:#c084fc; flex-shrink:0; }
+  .repeat-item .period{ width:56px; flex-shrink:0; color:#c9ccdf; }
+  .repeat-item.is-today{ color:#f2e6ff; font-weight:700; }
+  .repeat-item.is-today .dot{ background:#f472b6; box-shadow:0 0 8px #f472b6; }
+  .repeat-item.is-past{ opacity:.38; text-decoration: line-through; }
+
+  #weeklyRoutineList{
+    min-height:240px;
+    max-height:38vh;
+    padding:8px;
+    border-radius:18px;
+    background:rgba(255,255,255,.02);
+    border:1px solid rgba(255,255,255,.07);
+  }
+  #weeklyRoutineList > div{ min-height:56px; }
+
+  .q-card{
+    background: rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:20px;
+    padding:14px; transition: all .2s ease; display:flex; flex-direction:column; gap:10px;
+  }
+  .q-card:hover{ border-color: rgba(167,139,250,0.3); background: rgba(255,255,255,0.05); }
+
+  .tab-btn{ padding: 6px 14px; border-radius: 12px; font-size: 12px; font-weight: 600; transition: all 0.2s ease; }
+  .tab-btn.active{ background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; box-shadow: 0 4px 12px rgba(99,102,241,0.3); }
+  .tab-btn.inactive{ color: #94a3b8; }
+  .tab-btn.inactive:hover{ color: white; }
+
+  /* ANALİZ SİSTEMİ */
+  .analysis-exam-tab{padding:7px 16px;border-radius:12px;font-size:12px;font-weight:700;color:#94a3b8;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);transition:all .2s ease;}
+  .analysis-exam-tab:hover{color:#fff;background:rgba(255,255,255,.07)}
+  .analysis-exam-tab.active{color:#fff;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-color:transparent;box-shadow:0 4px 14px rgba(99,102,241,.28)}
+  .analysis-stat-card{background:rgba(15,23,42,.52);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:17px 18px;backdrop-filter:blur(12px)}
+  .analysis-info-card{display:flex;align-items:center;justify-content:space-between;gap:18px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:18px 20px}
+  .analysis-lesson-card{background:rgba(15,23,42,.42);border:1px solid rgba(255,255,255,.08);border-radius:24px;overflow:hidden;backdrop-filter:blur(12px)}
+  .analysis-lesson-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.018)}
+  .analysis-topic-row{display:grid;grid-template-columns:minmax(220px,1.5fr) repeat(3,minmax(92px,.45fr)) minmax(300px,1.5fr);gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.055)}
+  .analysis-topic-row:last-child{border-bottom:0}
+  .analysis-topic-row:hover{background:rgba(255,255,255,.025)}
+  .analysis-topic-title{min-width:0}
+  .analysis-topic-name{font-size:12px;font-weight:700;color:#e5e7eb}
+  .analysis-warning{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:8px;margin-left:8px;color:#fff7ed;background:linear-gradient(135deg,#f59e0b,#ef4444);box-shadow:0 0 12px rgba(245,158,11,.42);font-size:13px;font-weight:900}
+  .analysis-choice{width:100%;min-height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);color:#94a3b8;font-size:11px;font-weight:700;transition:all .18s ease;cursor:pointer}
+  .analysis-choice:hover{color:#fff;background:rgba(255,255,255,.07)}
+  .analysis-choice.selected.correct{color:#d1fae5;background:rgba(16,185,129,.16);border-color:rgba(52,211,153,.38)}
+  .analysis-choice.selected.wrong{color:#ffe4e6;background:rgba(244,63,94,.16);border-color:rgba(251,113,133,.4)}
+  .analysis-choice.selected.blank{color:#e2e8f0;background:rgba(100,116,139,.18);border-color:rgba(148,163,184,.32)}
+  .analysis-reason-wrap{display:flex;gap:8px;align-items:center;min-width:0}
+  .analysis-reason{width:100%;min-height:38px;border-radius:12px;padding:10px 11px;outline:none;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);color:#e5e7eb;font-size:11px;cursor:text;resize:vertical;line-height:1.35;pointer-events:auto;user-select:text}
+  .analysis-reason:focus{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.16)}
+  .analysis-reason.disabled-look{opacity:.42}
+  .analysis-repeat-btn{flex-shrink:0;min-height:38px;padding:0 11px;border-radius:12px;color:#fde68a;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.28);font-size:10.5px;font-weight:800;white-space:nowrap;transition:all .18s ease;cursor:pointer}
+  .analysis-repeat-btn:hover{background:rgba(245,158,11,.22);transform:translateY(-1px)}
+  .analysis-history-card{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:14px 16px;transition:all .18s ease;cursor:pointer}
+  .analysis-history-card:hover{background:rgba(255,255,255,.05);border-color:rgba(139,92,246,.28)}
+  .analysis-history-card.selected{border-color:rgba(139,92,246,.55);background:rgba(99,102,241,.08);box-shadow:0 0 0 1px rgba(139,92,246,.14) inset}
+  .analysis-history-pill{font-size:9px;font-weight:800;padding:3px 7px;border-radius:999px;background:rgba(99,102,241,.14);color:#c7d2fe;border:1px solid rgba(99,102,241,.24)}
+  .analysis-history-delete{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:9px;background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.16);color:#fda4af;font-size:12px;transition:all .18s ease;cursor:pointer;flex-shrink:0}
+  .analysis-history-delete:hover{background:rgba(244,63,94,.20);border-color:rgba(251,113,133,.38);color:#ffe4e6;transform:scale(1.04)}
+  .analysis-mobile-label{display:none}
+  .exam-subject-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .exam-subject-grid.ayt{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .exam-subject-box{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px}
+  .exam-report-card{background:rgba(15,23,42,.42);border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:18px;backdrop-filter:blur(12px)}
+  .exam-report-item{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:12px 14px}
+  .exam-subject-chip{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)}
+  .exam-time-panel{background:rgba(15,23,42,.42);border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:18px;backdrop-filter:blur(12px)}
+  .exam-time-row{display:grid;grid-template-columns:minmax(120px,1fr) 70px minmax(120px,1.6fr) 90px;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+  .exam-time-row:last-child{border-bottom:0}
+  .exam-time-track{height:8px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden}
+  .exam-time-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#6366f1,#a855f7)}
+  @media (max-width:700px){.exam-time-row{grid-template-columns:1fr 60px}.exam-time-track{grid-column:1 / -1}.exam-time-delta{grid-column:2;text-align:right}}
+  @media (max-width:700px){.exam-subject-grid,.exam-subject-grid.ayt{grid-template-columns:1fr}}
+  @media (max-width:1100px){.analysis-topic-row{grid-template-columns:1fr 1fr 1fr}.analysis-topic-title{grid-column:1 / -1}.analysis-reason-wrap{grid-column:1 / -1}}
+  @media (max-width:700px){.analysis-info-card{align-items:stretch;flex-direction:column}.analysis-topic-row{grid-template-columns:1fr}.analysis-choice,.analysis-reason-wrap{width:100%}.analysis-mobile-label{display:block;font-size:9px;color:#64748b;margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em}}
+
+  html, body, button, input, textarea, select { -webkit-tap-highlight-color: transparent; }
+  body { overscroll-behavior: none; }
+  button, input, textarea, select { font-size: max(16px, 1em); }
+  @media (max-width: 1100px){
+    header{padding-left:12px !important;padding-right:12px !important;overflow-x:auto;}
+    header > .flex:first-child{min-width:max-content;}
+    header > .flex:last-child{min-width:max-content;}
+    .tab-btn{padding:8px 11px;}
+    #calendarWrap{touch-action:pan-x pan-y;}
+    .day-col{min-width:120px;}
+    #calendarBody{min-width:840px;}
+    #dayHeaders{min-width:840px;}
+    aside.w-\[350px\]{width:300px;}
+  }
+  @media (max-width: 700px){
+    html,body{overflow:hidden;}
+    .modal-box{max-width:94vw !important;max-height:88vh;overflow:auto;}
+    #examScoresView,#weeklyProgramView,#analysisView,#questionBoxView{padding:12px !important;}
+    #weeklyDaysGrid{grid-template-columns:1fr 1fr !important;}
+  }
+  @media (pointer: coarse){
+    .event-block{padding:8px 10px;}
+    .resize-handle{height:14px;}
+    .blk-del{width:24px !important;height:24px !important;line-height:21px !important;}
+    .wtask-card{touch-action:none;}
+  }
+</style>
+</head>
+<body class="w-screen h-screen flex flex-col">
+
+  <!-- Gizli Dosya Seçici -->
+  <input type="file" id="hiddenFileInput" accept="image/*" class="hidden" />
+  <input type="file" id="hiddenBackupInput" accept=".json,application/json" class="hidden" />
+
+  <header class="flex items-center justify-between gap-4 px-6 py-3.5 border-b border-white/10 bg-white/[0.02] backdrop-blur-md shrink-0">
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl flex items-center justify-center text-xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 shadow-lg shadow-indigo-500/30">🦉</div>
+        <div>
+          <div class="font-display font-extrabold text-[17px] leading-none tracking-tight">Study Flow</div>
+          <div class="text-[11px] text-slate-500 mt-1">YKS Akıllı Ders Planlayıcı</div>
+        </div>
+      </div>
+
+      <!-- Sekme Butonları (4 Sekme) -->
+      <div class="flex bg-white/5 p-1 rounded-2xl border border-white/10 ml-2 gap-1">
+        <button type="button" id="navCalendarBtn" class="tab-btn active">📅 Takvim</button>
+        <button type="button" id="navQuestionBtn" class="tab-btn inactive flex items-center gap-1.5">
+          <span>📸 Soru Kutusu</span>
+          <span id="qBadgeCount" class="bg-rose-500/30 text-rose-300 px-2 py-0.5 rounded-full text-[10px] font-bold">0</span>
+        </button>
+        <button type="button" id="navExamBtn" class="tab-btn inactive">📊 Deneme Netleri</button>
+        <button type="button" id="navWeeklyBtn" class="tab-btn inactive">📋 Haftalık Program</button>
+        <button type="button" id="navAnalysisBtn" class="tab-btn inactive">📈 Analiz Sistemi</button>
+      </div>
+    </div>
+
+    <div id="weekNavControls" class="flex items-center gap-2 transition-opacity duration-300">
+      <button type="button" id="prevWeekBtn" class="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white transition-all duration-300 flex items-center justify-center">‹</button>
+      <div id="weekLabel" class="text-sm font-semibold w-48 text-center text-slate-200 select-none"></div>
+      <button type="button" id="nextWeekBtn" class="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white transition-all duration-300 flex items-center justify-center">›</button>
+      <button type="button" id="todayBtn" class="h-9 px-3.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-slate-300 hover:text-white transition-all duration-300">Bugün</button>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button type="button" id="openSettingsBtn" title="Kayıt ayarları" class="w-10 h-10 rounded-2xl text-lg text-slate-200 bg-white/5 hover:bg-white/10 border border-white/10 transition-all duration-300 flex items-center justify-center">
+        ⚙️
+      </button>
+      <button type="button" id="openAddQuestionTopBtn" class="rounded-2xl px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 shadow-lg shadow-rose-500/20 transition-all duration-300 flex items-center gap-1.5">
+        <span>+ Soru Ekle</span>
+      </button>
+      <button type="button" id="openRepeatModalBtn" class="rounded-2xl px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:from-indigo-500 hover:to-fuchsia-500 shadow-lg shadow-indigo-500/30 transition-all duration-300">
+        + Konu Tekrarı Ekle
+      </button>
+    </div>
+  </header>
+
+  <!-- 1. TAKVİM EKRANI -->
+  <div id="calendarView" class="flex flex-1 min-h-0">
+    <main id="calendarWrap" class="flex-1 overflow-auto relative">
+      <div class="sticky top-0 z-30 flex bg-[#0a0d17]/92 backdrop-blur-md border-b border-white/10">
+        <div style="width:60px;" class="shrink-0"></div>
+        <div id="dayHeaders" class="flex-1 grid grid-cols-7"></div>
+      </div>
+      <div class="flex">
+        <div id="timeGutter" style="width:60px;" class="shrink-0 relative"></div>
+        <div id="calendarBody" class="flex-1 grid grid-cols-7 relative"></div>
+      </div>
+    </main>
+
+    <aside class="w-[350px] shrink-0 border-l border-white/10 bg-white/[0.015] p-5 overflow-y-auto flex flex-col gap-5">
+      <div class="rounded-3xl bg-slate-900/40 backdrop-blur-md border border-white/10 shadow-xl p-5 flex-1 flex flex-col min-h-0">
+        <h2 class="font-display text-sm font-bold tracking-widest text-slate-300 uppercase mb-4">📚 Konu Tekrarları Paneli</h2>
+        <div id="repeatList" class="flex flex-col gap-3 overflow-y-auto pr-1"></div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 2. SORU KUTUSU EKRANI -->
+  <div id="questionBoxView" class="flex-1 min-h-0 p-8 overflow-y-auto hidden overscroll-contain">
+    <div class="max-w-6xl mx-auto flex flex-col gap-6">
+      <div class="flex items-center justify-between pb-4 border-b border-white/10">
+        <div>
+          <h1 class="font-display text-2xl font-bold text-white flex items-center gap-2.5">📸 Dijital Soru Kutusu</h1>
+          <p class="text-xs text-slate-400 mt-1">Yapamadığın soruları kaydet, 3 gün sonra otomatik takvim tekrarına düşsün.</p>
+        </div>
+        <button type="button" id="openAddQuestionMainBtn" class="rounded-2xl px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-rose-500 to-amber-500 hover:opacity-90 shadow-lg shadow-rose-500/20 transition-all flex items-center gap-2">
+          <span>+ Yeni Soru Kaydet</span>
+        </button>
+      </div>
+      <div id="questionGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+    </div>
+  </div>
+
+  <!-- 3. DENEME NETLERİ EKRANI -->
+  <div id="examScoresView" class="flex-1 min-h-0 p-8 overflow-y-auto hidden overscroll-contain">
+    <div class="max-w-6xl mx-auto flex flex-col gap-6">
+      <div class="flex items-center justify-between pb-4 border-b border-white/10">
+        <div>
+          <h1 class="font-display text-2xl font-bold text-white flex items-center gap-2.5">📊 Deneme Net Takibi</h1>
+          <p class="text-xs text-slate-400 mt-1">Geçmiş netlerini ve gelecek deneme hedeflerini grafik üzerinde analiz et.</p>
+        </div>
+        <button type="button" id="openAddExamBtn" class="rounded-2xl px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-indigo-500 to-fuchsia-500 hover:opacity-90 shadow-lg shadow-indigo-500/20 transition-all flex items-center gap-2">
+          <span>+ Deneme / Net Ekle</span>
+        </button>
+      </div>
+
+      <!-- Net Grafiği Kartı -->
+      <div class="bg-slate-900/40 border border-white/10 rounded-3xl p-6 backdrop-blur-md shadow-2xl">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-display text-sm font-bold text-slate-300">Gelişim Grafiği (Net / Tarih)</h2>
+          <div class="flex items-center gap-3 text-xs">
+            <span class="flex items-center gap-1.5 text-indigo-400 font-semibold"><span class="w-3 h-3 rounded-full bg-indigo-500 inline-block"></span> TYT Netleri</span>
+            <span class="flex items-center gap-1.5 text-fuchsia-400 font-semibold"><span class="w-3 h-3 rounded-full bg-fuchsia-500 inline-block"></span> AYT Netleri</span>
+          </div>
+        </div>
+        <div class="relative h-72 w-full">
+          <canvas id="netChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Deneme Sonrası Otomatik Rapor -->
+      <div id="examReportCard" class="exam-report-card hidden">
+        <div class="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 class="font-display text-sm font-bold text-slate-200">🧠 Deneme Sonrası Otomatik Rapor</h2>
+            <p id="examReportSubtitle" class="text-[10px] text-slate-500 mt-1"></p>
+          </div>
+          <span id="examReportTrend" class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-slate-300"></span>
+        </div>
+        <div id="examReportSummary" class="grid grid-cols-1 md:grid-cols-3 gap-3"></div>
+        <div id="examReportSubjects" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mt-4"></div>
+      </div>
+
+      <!-- Ders Bazlı Gelişim Grafikleri -->
+      <div class="bg-slate-900/40 border border-white/10 rounded-3xl p-6 backdrop-blur-md shadow-2xl">
+        <div class="flex items-center justify-between mb-4 gap-3">
+          <div>
+            <h2 class="font-display text-sm font-bold text-slate-300">📈 Ders Bazlı Gelişim</h2>
+            <p id="subjectChartSubtitle" class="text-[10px] text-slate-500 mt-1"></p>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button type="button" id="subjectChartTYTBtn" class="analysis-exam-tab active">TYT</button>
+            <button type="button" id="subjectChartAYTBtn" class="analysis-exam-tab">AYT</button>
+          </div>
+        </div>
+        <div class="relative h-80 w-full">
+          <canvas id="subjectNetChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Ders Ders Deneme Süre Analizi -->
+      <div class="exam-time-panel">
+        <div class="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 class="font-display text-sm font-bold text-slate-300">⏱️ Ders Ders Deneme Süre Analizi</h2>
+            <p id="examTimeSubtitle" class="text-[10px] text-slate-500 mt-1"></p>
+          </div>
+          <div class="text-[10px] text-slate-500">Son deneme / Ortalama</div>
+        </div>
+        <div id="examTimeAnalysis"></div>
+      </div>
+
+      <!-- Deneme Geçmişi Listesi -->
+      <div class="flex flex-col gap-3">
+        <h2 class="font-display text-sm font-bold text-slate-300 mt-2">Kayıtlı Deneme Sınavları</h2>
+        <div id="examListGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. HAFTALIK PROGRAM EKRANI -->
+  <div id="weeklyProgramView" class="flex-1 min-h-0 p-8 overflow-y-auto hidden overscroll-contain">
+    <div class="max-w-[1700px] mx-auto flex flex-col gap-6">
+      <div class="flex items-center justify-between pb-4 border-b border-white/10">
+        <div>
+          <h1 class="font-display text-2xl font-bold text-white flex items-center gap-2.5">📋 Haftalık Rutin ve Görev Programı</h1>
+          <p class="text-xs text-slate-400 mt-1">Haftanın her gününe özel çalışma rutinlerini sürükle-bırak ile organize et ve sıralamalarını düzenle.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" id="openWeeklyRoutinesBtn" class="rounded-2xl px-4 py-2.5 text-sm font-bold text-amber-100 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-400/20 transition-all">🔁 Rutinler</button>
+          <button type="button" id="openWeeklyArchivesBtn" class="rounded-2xl px-4 py-2.5 text-sm font-bold text-slate-200 bg-white/5 hover:bg-white/10 border border-white/10 transition-all flex items-center gap-2">
+            <span>🗂 Arşiv</span>
+            <span id="weeklyArchiveCount" class="bg-indigo-500/25 text-indigo-200 px-2 py-0.5 rounded-full text-[10px]">0</span>
+          </button>
+          <button type="button" id="archiveWeeklyPlanBtn" class="rounded-2xl px-4 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-indigo-500 to-violet-500 hover:opacity-90 shadow-lg shadow-indigo-500/20 transition-all">+ Yeni Hafta</button>
+          <button type="button" id="openAddWeeklyTaskMainBtn" class="rounded-2xl px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-90 shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2">
+            <span>+ Görev Ekle</span>
+          </button>
+        </div>
+      </div>
+      
+      <!-- 7 Günlük Izgara -->
+      <div id="weeklyDaysGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-4"></div>
+    </div>
+  </div>
+
+
+  <!-- 5. ANALİZ SİSTEMİ EKRANI -->
+  <div id="analysisView" class="flex-1 min-h-0 p-8 overflow-y-auto hidden overscroll-contain">
+    <div class="max-w-[1550px] mx-auto flex flex-col gap-6">
+
+      <div class="flex items-center justify-between pb-4 border-b border-white/10 gap-4">
+        <div>
+          <h1 class="font-display text-2xl font-bold text-white flex items-center gap-2.5">📈 Analiz Sistemi</h1>
+          <p class="text-xs text-slate-400 mt-1">TYT ve AYT genel denemelerinde konu bazlı performansını takip et, geçmiş denemeleri aç ve düzenle.</p>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <button type="button" id="analysisTYTBtn" class="analysis-exam-tab active">TYT</button>
+          <button type="button" id="analysisAYTBtn" class="analysis-exam-tab">AYT</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-[330px_minmax(0,1fr)] gap-5">
+
+        <!-- GEÇMİŞ DENEMELER -->
+        <aside class="bg-slate-900/40 border border-white/10 rounded-3xl p-4 backdrop-blur-md flex flex-col min-h-[520px]">
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <div>
+              <div class="font-display text-sm font-bold text-white">🗂 Geçmiş Denemeler</div>
+              <div class="text-[10px] text-slate-500 mt-1">Kaydedilmiş denemeye tıklayıp sonuçlarını tekrar aç.</div>
+            </div>
+            <span id="analysisHistoryCount" class="analysis-history-pill">0</span>
+          </div>
+
+          <div id="analysisHistoryList" class="flex flex-col gap-2 overflow-y-auto pr-1 flex-1"></div>
+        </aside>
+
+        <!-- ANA ANALİZ -->
+        <div class="flex flex-col gap-5 min-w-0">
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="analysis-stat-card">
+              <div class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Toplam Konu</div>
+              <div id="analysisTotalTopics" class="text-3xl font-black text-white mt-2">0</div>
+            </div>
+            <div class="analysis-stat-card">
+              <div class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Bu Denemede İşaretli</div>
+              <div id="analysisAnsweredCount" class="text-3xl font-black text-emerald-300 mt-2">0</div>
+            </div>
+            <div class="analysis-stat-card">
+              <div class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Aktif Uyarı</div>
+              <div id="analysisWarningCount" class="text-3xl font-black text-amber-300 mt-2">0</div>
+            </div>
+          </div>
+
+          <div class="analysis-info-card">
+            <div class="flex flex-col gap-2">
+              <div class="text-sm font-bold text-slate-200" id="analysisModeTitle">Yeni TYT Denemesi</div>
+              <div class="text-[11px] text-slate-400 leading-relaxed">
+                Yanlış seçtiğinde sebep alanı aktif olur ve içine rahatça yazabilirsin. Kaydettiğin her deneme soldaki geçmiş listesine eklenir. Eski denemeye tıklarsan sonuçlarını açıp düzenleyebilirsin.
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 shrink-0">
+              <button type="button" id="analysisNewAttemptBtn" class="rounded-2xl px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:opacity-90 transition-all shadow-lg shadow-violet-500/20">
+                + Yeni Deneme
+              </button>
+              <button type="button" id="analysisSaveAttemptBtn" class="rounded-2xl px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-90 transition-all shadow-lg shadow-emerald-500/20">
+                ✓ Denemeyi Kaydet
+              </button>
+            </div>
+          </div>
+
+          <div id="analysisLessonsWrap" class="flex flex-col gap-5"></div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Kayıt Ayarları Modalı -->
+  <div id="settingsModal" class="modal-backdrop hidden z-70">
+    <div class="modal-box w-[440px] rounded-3xl bg-slate-900/95 backdrop-blur-2xl border border-white/10 shadow-2xl p-6">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h2 class="font-display text-lg font-bold text-white">⚙️ Kayıt Ayarları</h2>
+          <p class="text-[12px] text-slate-400 mt-1.5">Verilerini yedekle veya daha önce aldığın bir kayıttan devam et.</p>
+        </div>
+        <button type="button" id="closeSettingsBtn" class="w-8 h-8 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all">✕</button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 mt-6">
+        <section class="rounded-2xl p-4 bg-white/[0.035] border border-white/10 flex flex-col">
+          <div class="text-xl">💾</div>
+          <h3 class="text-sm font-bold text-slate-100 mt-2">Dosya kaydetme</h3>
+          <p class="text-[11px] leading-relaxed text-slate-400 mt-1 flex-1">Mevcut verilerini iPad'e JSON yedeği olarak kaydeder.</p>
+          <button type="button" id="exportDataBtn" class="mt-4 rounded-xl px-3 py-2 text-xs font-bold text-white bg-gradient-to-r from-indigo-500 to-violet-500 hover:opacity-90 transition-all">JSON Yedeği</button>
+        </section>
+
+        <section class="rounded-2xl p-4 bg-white/[0.035] border border-white/10 flex flex-col">
+          <div class="text-xl">📂</div>
+          <h3 class="text-sm font-bold text-slate-100 mt-2">Dosya yükleme</h3>
+          <p class="text-[11px] leading-relaxed text-slate-400 mt-1 flex-1">Daha önce kaydettiğin JSON dosyasını seçip kaldığın yerden devam et.</p>
+          <button type="button" id="importDataBtn" class="mt-4 rounded-xl px-3 py-2 text-xs font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-90 transition-all">Dosya yükle</button>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Haftalık Görev Ekle / Düzenle Modalı -->
+  <div id="addWeeklyTaskModal" class="modal-backdrop hidden z-60">
+    <div class="modal-box w-[400px] rounded-3xl bg-slate-900/95 backdrop-blur-2xl border border-white/10 shadow-2xl p-6">
+      <h2 id="wTaskModalTitle" class="font-display text-lg font-bold text-white">📋 Haftalık Görev Ekle</h2>
+      
+      <label class="text-[11px] text-slate-400 font-semibold mt-4 block">Gün</label>
+      <select id="wTaskDayInput" class="field-input">
+        <option value="0">Pazartesi</option>
+        <option value="1">Salı</option>
+        <option value="2">Çarşamba</option>
+        <option value="3">Perşembe</option>
+        <option value="4">Cuma</option>
+        <option value="5">Cumartesi</option>
+        <option value="6">Pazar</option>
+      </select>
+
+      <label class="text-[11px] text-slate-400 font-semibold mt-3 block">Görev Başlığı</label>
+      <input id="wTaskTitleInput" type="text" placeholder="Örn: 2 Saat Problem Çözümü" class="field-input" />
+
+      <label class="text-[11px] text-slate-400 font-semibold mt-3 block">Not / Açıklama (İsteğe Bağlı)</label>
+      <textarea id="wTaskNoteInput" rows="2" placeholder="Örn: Mikrohücre yayınları 3. testten devam." class="field-input resize-none"></textarea>
+
+      <label class="text-[11px] text-slate-400 font-semibold mt-3 block">Renk</label>
+      <div id="wTaskColorPicker" class="flex gap-2.5 mt-2"></div>
+
+      <div class="flex gap-2 justify-end mt-6">
+        <button type="button" id="cancelWTaskBtn" class="rounded-2xl px-4 py-2 text-sm font-semibold text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-all">İptal</button>
+        <button type="button" id="saveWTaskBtn" class="rounded-2xl px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-90 transition-all">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Haftalık Program Arşivi -->
+  <div id="weeklyArchiveModal" class="modal-backdrop hidden z-70">
+    <div class="modal-box w-[680px] max-w-[92vw] max-h-[82vh] rounded-3xl bg-slate-900/95 backdrop-blur-2xl border border-white/10 shadow-2xl p-6 flex flex-col">
+      <div class="flex items-start justify-between gap-4 shrink-0">
+        <div>
+          <h2 class="font-display text-lg font-bold text-white">🗂 Haftalık Program Arşivi</h2>
+          <p class="text-[12px] text-slate-400 mt-1">Eski programların burada güvenle saklanır. Birini açarsan mevcut planın da arşivlenir.</p>
+        </div>
+        <button type="button" id="closeWeeklyArchivesBtn" class="w-8 h-8 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all">✕</button>
+      </div>
+      <div id="weeklyArchiveList" class="mt-5 overflow-y-auto pr-1 flex flex-col gap-3"></div>
+    </div>
+  </div>
+
+  <!-- Haftalık Rutinler -->
+  <div id="weeklyRoutineModal" class="modal-backdrop hidden z-70">
+    <div class="modal-box w-[650px] max-w-[92vw] max-h-[86vh] rounded-3xl bg-slate-900/95 backdrop-blur-2xl border border-white/10 shadow-2xl p-6 flex flex-col">
+      <div class="flex items-start justify-between gap-4 shrink-0">
+        <div>
+          <h2 class="font-display text-lg font-bold text-white">🔁 Haftalık Rutinler</h2>
+          <p class="text-[12px] text-slate-400 mt-1">Her hafta tekrarladığın işleri burada bir kez tanımla.</p>
+        </div>
+        <button type="button" id="closeWeeklyRoutinesBtn" class="w-8 h-8 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all">✕</button>
+      </div>
+
+      <div class="mt-5 p-4 rounded-2xl bg-white/[0.035] border border-white/10">
+        <div class="grid grid-cols-1 sm:grid-cols-[1.25fr_1fr] gap-3">
+          <div>
+            <div class="routine-picker-heading"><label class="text-[11px] text-slate-400 font-semibold block">Tekrarlanma günleri</label><span class="routine-picker-badge">HAFTALIK</span></div>
+            <div id="routineDayPicker" class="routine-day-picker">
+              <label class="routine-day-option is-every cursor-pointer">
+                <span class="day-name"><span class="day-icon">7/7</span><span class="day-label">Her gün</span></span>
+                <span class="day-check">✓</span><input type="checkbox" id="routineEveryDayInput" checked>
+              </label>
+            </div>
+            <div class="routine-picker-note">Rutinini haftanın istediğin günlerine bağla. <span class="text-slate-400">Her gün</span> seçersen 7 günün tamamına otomatik uygulanır.</div>
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-400 font-semibold block">Rutin Başlığı</label>
+            <input id="routineTitleInput" type="text" placeholder="Örn: 30 dk paragraf çöz" class="field-input" />
+          </div>
+        </div>
+        <label class="text-[11px] text-slate-400 font-semibold mt-3 block">Not (isteğe bağlı)</label>
+        <input id="routineNoteInput" type="text" placeholder="Örn: Günün ilk işi" class="field-input" />
+        <label class="text-[11px] text-slate-400 font-semibold mt-3 block">Renk</label>
+        <div id="routineColorPicker" class="flex gap-2.5 mt-2"></div>
+        <div class="flex justify-end mt-4"><button type="button" id="saveRoutineBtn" class="rounded-xl px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-90 transition-all">Rutini Kaydet</button></div>
+      </div>
+
+      <div class="mt-5 min-h-0 flex-1 flex flex-col">
+        <div class="text-[11px] uppercase tracking-widest text-slate-500 font-bold mb-2">Kayıtlı rutinler</div>
+        <div id="weeklyRoutineList" class="flex flex-col gap-2 overflow-y-auto flex-1"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deneme Ekle / Düzenle Modalı -->
+  <div id="addExamModal" class="modal-backdrop hidden z-60">
+    <div class="modal-box w-[400px] rounded-3xl bg-slate-900/95 backdrop-blur-2xl border border-white/10 shadow-2xl p-6">
+      <h2 id="examModalTitle" class="font-display text-lg font-bold text-white">📊 Deneme / Net Kaydı</h2>
+      
+      <label class="text-[11px] text-slate-400 font-semibold mt-4 block">Sınav Adı / Yayın</label>
+      <input id="examTitleInput" type="text" placeholder="Örn: 3D Türkiye Geneli Deneme-1" class="field-input" />
+
+      <label class="text-[11px] text-slate-400 font-semibold mt-3 block">Sınav Türü</label>
+      <select id="examTypeInput" class="field-input">
+        <option value="TYT">TYT Denemesi</option>
+        <option value="AYT">AYT Denemesi</option>
+        <option value="Branş">Branş Denemesi</option>
+      </select>
+
+      <div class="grid grid-cols-2 gap-3 mt-3">
+        <div>
+          <label class="text-[11px] text-slate-400 font-semibold block">Tarih</label>
+          <input id="examDateInput" type="date" class="field-input" />
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 font-semibold block">Toplam Net</label>
+          <input id="examNetInput" type="number" step="0.25" placeholder="87.5" class="field-input" />
+        </div>
+      </div>
+
+      <div id="examSubjectNetWrap" class="mt-3">
+        <label class="text-[11px] text-slate-400 font-semibold block">Ders Netleri</label>
+        <div id="examSubjectNetGrid" class="exam-subject-grid mt-2"></div>
+      </div>
+
+      <div id="examSubjectTimeWrap" class="mt-3">
+        <label class="text-[11px] text-slate-400 font-semibold block">Ders Süreleri (dakika)</label>
+        <div id="examSubjectTimeGrid" class="exam-subject-grid mt-2"></div>
+      </div>
+
+      <label class="text-[11px] text-slate-400 font-semibold mt-3 block">Sınav Notu / Hedef</label>
+      <textarea id="examNoteInput" rows="2" placeholder="Örn: Mat süresi yetişmedi, Fizikte elektrik tekrar edilecek." class="field-input resize-none"></textarea>
+
+      <div class="flex gap-2 justify-end mt-6">
+        <button type="button" id="cancelExamBtn" class="rounded-2xl px-4 py-2 text-sm font-semibold text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-all">İptal</button>
+        <button type="button" id="saveExamBtn" class="rounded-2xl px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-indigo-500 to-fuchsia-500 hover:opacity-90 transition-all">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Soru Ekle / Düzenle Modalı -->
+  <div id="addQuestionModal" class="modal-backdrop hidden z-60">
+    <div class="modal-box w-[420px] rounded-3xl bg-slate-900/95 backdrop-blur-2xl border border-white/10 shadow-2xl p-6">
+      <h2 id="questionModalTitle" class="font-display text-lg font-bold text-white">📷 Yeni Soru Ekle</h2>
+      
+      <label class="text-[11px] text-slate-400 font-semibold mt-4 block">Ders</label>
+      <select id="qLessonInput" class="field-input">
+        <option value="Matematik">Matematik</option>
+        <option value="Fizik">Fizik</option>
+        <option value="Kimya">Kimya</option>
+        <option value="Biyoloji">Biyoloji</option>
+        <option value="Geometri">Geometri</option>
+        <option value="Türkçe">Türkçe / Paragraf</option>
+        <option value="Diğer">Diğer</option>
+      </select>
+
+      <label class="text-[11px] text-slate-400 font-semibold mt-3 block">Konu</label>
+      <input id="qTopicInput" type="text" placeholder="Örn: İntegral Teğet Sorusu" class="field-input" />
+
+      <label class="text-[11px] text-slate-400 font-semibold mt-3 block">Not / Çözüm İpucu</label>
+      <textarea id="qNoteInput" rows="2" placeholder="Örn: Türev alırken eksi işaretini dağıtmayı unutma." class="field-input resize-none"></textarea>
+
+      <label class="text-[11px] text-slate-400 font-semibold mt-3 block">Soru Fotoğrafı</label>
+      <div class="flex items-center gap-3 mt-2">
+        <button type="button" id="selectImgBtn" class="rounded-xl px-4 py-2 text-xs font-semibold text-slate-200 bg-white/10 hover:bg-white/20 border border-white/10 transition-all cursor-pointer">
+          📷 Görsel Seç
+        </button>
+        <span id="imgStatusLabel" class="text-[11px] text-slate-400">Fotoğraf seçilmedi</span>
+      </div>
+      <div id="imgPreviewWrap" class="mt-3 hidden">
+        <img id="qPreviewImg" class="w-full h-32 object-cover rounded-xl border border-white/10" />
+      </div>
+
+      <div class="flex items-center gap-2 mt-4 flex-wrap" id="autoScheduleWrap">
+        <input type="checkbox" id="autoScheduleCheck" checked class="rounded border-white/10 bg-white/5 text-rose-500 focus:ring-0">
+        <label for="autoScheduleCheck" class="text-[11.5px] text-slate-300">Takvimde hatırlat:</label>
+        <input id="autoScheduleDaysInput" type="number" min="1" max="365" value="2" class="w-16 bg-white/5 border border-white/10 rounded-xl px-2 py-1.5 text-center text-xs text-slate-100 outline-none focus:border-rose-400" />
+        <span class="text-[11.5px] text-slate-300">gün sonra</span>
+      </div>
+
+      <div class="flex gap-2 justify-end mt-6">
+        <button type="button" id="cancelAddQBtn" class="rounded-2xl px-4 py-2 text-sm font-semibold text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-all">İptal</button>
+        <button type="button" id="saveQBtn" class="rounded-2xl px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-rose-500 to-amber-500 hover:opacity-90 transition-all">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fotoğraf Büyütme Modalı -->
+  <div id="imgViewerModal" class="modal-backdrop hidden z-70">
+    <div class="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center">
+      <button type="button" id="closeImgViewerBtn" class="absolute -top-10 right-0 text-white text-xl font-bold">✕ Kapat</button>
+      <img id="fullSizeImg" class="max-w-[85vw] max-h-[85vh] rounded-2xl border border-white/20 shadow-2xl object-contain" />
+    </div>
+  </div>
+
+  <!-- Repeat Modal -->
+  <div id="repeatModal" class="modal-backdrop hidden">
+    <div class="modal-box w-[380px] rounded-3xl bg-slate-900/90 backdrop-blur-xl border border-white/10 shadow-2xl p-6">
+      <h2 class="font-display text-lg font-bold text-white">🔁 Konu Tekrarı Ekle</h2>
+      <p class="text-[12px] text-slate-400 mt-1.5 leading-relaxed">
+        Sistem bugünden itibaren <b class="text-violet-300">1. gün, 3. gün, 1. hafta, 1. ay ve 3. ay</b>
+        tekrarlarını otomatik hesaplayıp takvime ekler.
+      </p>
+
+      <label class="text-[11px] text-slate-400 font-semibold mt-4 block">Konu Adı</label>
+      <input id="topicNameInput" type="text" placeholder="Örn: Türev ve İntegral" class="field-input" />
+
+      <label class="text-[11px] text-slate-400 font-semibold mt-3 block">Hatırlatma Saati</label>
+      <input id="topicTimeInput" type="time" value="19:00" class="field-input" />
+
+      <div class="flex gap-2 justify-end mt-6">
+        <button type="button" id="cancelRepeatBtn" class="rounded-2xl px-4 py-2 text-sm font-semibold text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-all">İptal</button>
+        <button type="button" id="addRepeatBtn" class="rounded-2xl px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-fuchsia-600 transition-all">Ekle</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Event Edit Modal -->
+  <div id="eventModal" class="modal-backdrop hidden">
+    <div class="modal-box w-[380px] rounded-3xl bg-slate-900/90 backdrop-blur-xl border border-white/10 shadow-2xl p-6">
+      <h2 class="font-display text-lg font-bold text-white">📌 Ders / Periyot Düzenle</h2>
+      <div id="eventModalTimeLabel" class="text-[12px] text-violet-300 font-semibold mt-1.5"></div>
+
+      <label class="text-[11px] text-slate-400 font-semibold mt-4 block">Başlık</label>
+      <input id="eventTitleInput" type="text" placeholder="Örn: Fizik çalışma bloğu" class="field-input" />
+
+      <div class="grid grid-cols-2 gap-3 mt-3">
+        <div>
+          <label class="text-[11px] text-slate-400 font-semibold block">Başlangıç Saati</label>
+          <input id="eventStartTimeInput" type="time" class="field-input" />
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 font-semibold block">Bitiş Saati</label>
+          <input id="eventEndTimeInput" type="time" class="field-input" />
+        </div>
+      </div>
+
+      <label class="text-[11px] text-slate-400 font-semibold mt-3 block">Renk</label>
+      <div id="colorPicker" class="flex gap-2.5 mt-2"></div>
+
+      <div class="flex items-center justify-between mt-6">
+        <button type="button" id="deleteEventBtn" class="rounded-2xl px-3.5 py-2 text-sm font-semibold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all" style="display:none;">Sil</button>
+        <div class="flex gap-2 ml-auto">
+          <button type="button" id="cancelEventBtn" class="rounded-2xl px-4 py-2 text-sm font-semibold text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-all">İptal</button>
+          <button type="button" id="saveEventBtn" class="rounded-2xl px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 transition-all">Kaydet</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  const HOUR_HEIGHT = 64;
+  const DAY_MINUTES = 24 * 60;
+  const DAYS_TR = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
+  const DAYS_FULL_TR = ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'];
+  const MONTHS_TR = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+
+  const COLORS = [
+    { key:'indigo',  grad:'linear-gradient(135deg,#6366f1,#4f46e5)' },
+    { key:'cyan',    grad:'linear-gradient(135deg,#22d3ee,#0ea5e9)' },
+    { key:'emerald', grad:'linear-gradient(135deg,#34d399,#059669)' },
+    { key:'amber',   grad:'linear-gradient(135deg,#fbbf24,#f59e0b)' },
+    { key:'rose',    grad:'linear-gradient(135deg,#fb7185,#e11d48)' },
+  ];
+  const REPEAT_GRAD = 'linear-gradient(135deg,#c084fc,#a855f7 55%,#ec4899)';
+
+  const REPEAT_OFFSETS = [
+    { days: 1,  label:'1. Gün'   },
+    { days: 3,  label:'3. Gün'   },
+    { days: 7,  label:'1. Hafta' },
+    { days: 30, label:'1. Ay'    },
+    { days: 90, label:'3. Ay'    },
+  ];
+
+  let calEvents = [];    
+  let questions = []; 
+  let exams = [];
+  let weeklyTasks = [];
+  let weeklyArchives = [];
+  let weeklyRoutines = [];
+  let analysisRecords = {};
+  let analysisAttempts = [];
+  let analysisExamType = 'TYT';
+  let analysisMode = 'new'; // new | edit
+  let analysisCurrentAttemptId = null;
+
+  let currentWeekStart = getMonday(new Date());
+  let dragState = null;
+  let ghostEl = null;
+  let pendingEventContext = null;
+  let tempBase64Image = null;
+  let netChartInstance = null;
+  let subjectNetChartInstance = null;
+  let subjectChartExamType = 'TYT';
+
+  let editingWTaskId = null;
+  let editingRoutineId = null;
+  let editingExamId = null;
+  let editingQuestionId = null;
+
+  function pad2(n){ return String(n).padStart(2,'0'); }
+
+  function getMonday(date){
+    const d = new Date(date);
+    const day = d.getDay(); 
+    const diff = (day === 0 ? -6 : 1) - day;
+    d.setDate(d.getDate() + diff);
+    d.setHours(0,0,0,0);
+    return d;
+  }
+
+  function formatDateKey(d){
+    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  }
+
+  function formatDisplayDate(dateKey){
+    if(!dateKey) return '';
+    const [y,m,d] = dateKey.split('-').map(Number);
+    return `${d} ${MONTHS_TR[m-1]}`;
+  }
+
+  function minToHHMM(m){
+    return `${pad2(Math.floor(m/60))}:${pad2(m%60)}`;
+  }
+
+  function timeToMin(timeStr){
+    if(!timeStr) return 0;
+    const [h, m] = timeStr.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  }
+
+  function weekRangeLabel(monday){
+    const end = new Date(monday);
+    end.setDate(end.getDate() + 6);
+    if(monday.getMonth() === end.getMonth()){
+      return `${monday.getDate()}–${end.getDate()} ${MONTHS_TR[monday.getMonth()]} ${monday.getFullYear()}`;
+    }
+    return `${monday.getDate()} ${MONTHS_TR[monday.getMonth()]} – ${end.getDate()} ${MONTHS_TR[end.getMonth()]} ${end.getFullYear()}`;
+  }
+
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  function colorGradFor(ev){
+    if(ev.type === 'repeat') return REPEAT_GRAD;
+    const c = COLORS.find(c => c.key === (ev.color || 'indigo'));
+    return c ? c.grad : COLORS[0].grad;
+  }
+
+  function minutesFromClientY(clientY, colRect){
+    const rel = clientY - colRect.top;
+    let m = (rel / HOUR_HEIGHT) * 60;
+    m = Math.round(m / 15) * 15;
+    return Math.max(0, Math.min(DAY_MINUTES, m));
+  }
+
+  function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.wtask-card:not(.opacity-40)')];
+    return draggableElements.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      } else {
+        return closest;
+      }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+
+  function getDataPayload(){
+    return {
+      events: calEvents, 
+      questions: questions, 
+      exams: exams,
+      weeklyTasks: weeklyTasks,
+      weeklyArchives: weeklyArchives,
+      weeklyRoutines: weeklyRoutines,
+      analysisRecords: analysisRecords,
+      analysisAttempts: analysisAttempts
+    };
+  }
+
+  function applyLoadedData(parsed){
+    if(Array.isArray(parsed)){
+      calEvents = parsed;
+      questions = [];
+      exams = [];
+      weeklyTasks = [];
+      weeklyArchives = [];
+      weeklyRoutines = [];
+      analysisRecords = {};
+      analysisAttempts = [];
+    } else if(parsed && typeof parsed === 'object') {
+      calEvents = parsed.events || [];
+      questions = parsed.questions || [];
+      exams = parsed.exams || [];
+      weeklyTasks = parsed.weeklyTasks || [];
+      weeklyArchives = Array.isArray(parsed.weeklyArchives) ? parsed.weeklyArchives : [];
+      weeklyRoutines = Array.isArray(parsed.weeklyRoutines) ? parsed.weeklyRoutines : [];
+      analysisRecords = parsed.analysisRecords || {};
+      analysisAttempts = parsed.analysisAttempts || [];
+    } else {
+      throw new Error('Geçersiz kayıt verisi');
+    }
+  }
+
+  const STORAGE_DB = 'study_flow_ipad_db';
+  const STORAGE_STORE = 'app';
+  const STORAGE_KEY = 'study_flow_data';
+  let storageDbPromise = null;
+
+  function openStorageDb(){
+    if(storageDbPromise) return storageDbPromise;
+    storageDbPromise = new Promise((resolve, reject) => {
+      if(!('indexedDB' in window)){ reject(new Error('IndexedDB desteklenmiyor')); return; }
+      const req = indexedDB.open(STORAGE_DB, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if(!db.objectStoreNames.contains(STORAGE_STORE)) db.createObjectStore(STORAGE_STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error('Veri tabanı açılamadı'));
+    });
+    return storageDbPromise;
+  }
+
+  function saveDataAll(){
+    const payload = getDataPayload();
+    const json = JSON.stringify(payload);
+    try { localStorage.setItem(STORAGE_KEY, json); } catch(e) {}
+    openStorageDb().then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction(STORAGE_STORE, 'readwrite');
+      tx.objectStore(STORAGE_STORE).put(payload, STORAGE_KEY);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    })).catch(() => {});
+  }
+
+  function migrateWeeklyRoutines(){
+    if(!Array.isArray(weeklyRoutines)) weeklyRoutines = [];
+    let changed = false;
+    weeklyRoutines.forEach(routine => {
+      const normalized = normalizeRoutineDays(routine);
+      const current = Array.isArray(routine.recurrenceDays)
+        ? routine.recurrenceDays.map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6).sort((a,b) => a-b)
+        : [];
+      if(JSON.stringify(normalized) !== JSON.stringify([...new Set(current)])){
+        routine.recurrenceDays = normalized;
+        if(normalized.length) routine.dayIndex = normalized[0];
+        changed = true;
+      }
+    });
+    if(changed) saveDataAll();
+  }
+
+  function loadDataAll(callback){
+    const fallback = () => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        applyLoadedData(JSON.parse(raw || '{}'));
+      } catch(e) {
+        applyLoadedData({});
+      }
+      callback();
+    };
+
+    openStorageDb().then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction(STORAGE_STORE, 'readonly');
+      const req = tx.objectStore(STORAGE_STORE).get(STORAGE_KEY);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    })).then(data => {
+      if(data) { applyLoadedData(data); callback(); }
+      else fallback();
+    }).catch(fallback);
+  }
+
+  function refreshAfterImport(){
+    migrateWeeklyRoutines();
+    analysisNormalize();
+    analysisRecalculateAllWarnings();
+    buildTimeGutter();
+    renderCalendar();
+    renderRepeatList();
+    updateQBadgeCount();
+    switchView('calendar');
+  }
+
+  function initDataSettings(){
+    const modal = document.getElementById('settingsModal');
+    const backupInput = document.getElementById('hiddenBackupInput');
+    const closeModal = () => modal.classList.add('hidden');
+
+    document.getElementById('openSettingsBtn').addEventListener('click', () => {
+      modal.classList.remove('hidden');
+    });
+    document.getElementById('closeSettingsBtn').addEventListener('click', closeModal);
+
+    document.getElementById('exportDataBtn').addEventListener('click', () => {
+      try {
+        const json = JSON.stringify(getDataPayload(), null, 2);
+        const blob = new Blob([json], {type:'application/json;charset=utf-8'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'study_flow_kayit_' + formatDateKey(new Date()) + '.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        alert("Kayıt dosyası hazırlandı. iPad'de Dosyalar uygulamasına kaydedebilirsin.");
+      } catch(e) {
+        alert('Kayıt dosyası oluşturulamadı.');
+      }
+    });
+
+    document.getElementById('importDataBtn').addEventListener('click', () => {
+      backupInput.value = '';
+      backupInput.click();
+    });
+
+    backupInput.addEventListener('change', () => {
+      const file = backupInput.files && backupInput.files[0];
+      if(!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          applyLoadedData(JSON.parse(reader.result || '{}'));
+          saveDataAll();
+          refreshAfterImport();
+          closeModal();
+          alert('Kayıt yüklendi. Kaldığın yerden devam edebilirsin.');
+        } catch(e) {
+          alert('Dosya yüklenemedi. Lütfen uygulamanın oluşturduğu geçerli bir JSON kayıt dosyası seç.');
+        }
+      };
+      reader.onerror = () => alert('Dosya okunamadı. Tekrar deneyebilirsin.');
+      reader.readAsText(file, 'utf-8');
+    });
+  }
+
+  function buildTimeGutter(){
+    const gutter = document.getElementById('timeGutter');
+    gutter.innerHTML = '';
+    gutter.style.height = (24 * HOUR_HEIGHT) + 'px';
+    for(let h = 0; h < 24; h++){
+      const label = document.createElement('div');
+      label.className = 'time-label';
+      label.style.top = (h * HOUR_HEIGHT) + 'px';
+      label.textContent = pad2(h) + ':00';
+      gutter.appendChild(label);
+    }
+  }
+
+  function renderCalendar(){
+    const headerRow = document.getElementById('dayHeaders');
+    const body = document.getElementById('calendarBody');
+    headerRow.innerHTML = '';
+    body.innerHTML = '';
+
+    const todayKey = formatDateKey(new Date());
+
+    for(let i = 0; i < 7; i++){
+      const d = new Date(currentWeekStart);
+      d.setDate(d.getDate() + i);
+      const dateKey = formatDateKey(d);
+      const isToday = dateKey === todayKey;
+
+      const headerCell = document.createElement('div');
+      headerCell.className = 'day-header' + (isToday ? ' is-today' : '');
+      headerCell.innerHTML = `<div class="dh-name">${DAYS_TR[i]}</div><div class="dh-num">${d.getDate()}</div>`;
+      headerRow.appendChild(headerCell);
+
+      const col = document.createElement('div');
+      col.className = 'day-col' + (isToday ? ' is-today-col' : '');
+      col.style.height = (24 * HOUR_HEIGHT) + 'px';
+      col.dataset.date = dateKey;
+
+      if(isToday){
+        const nowLine = document.createElement('div');
+        nowLine.className = 'now-line';
+        nowLine.id = 'nowLine';
+        nowLine.innerHTML = '<div class="now-dot glow-dot"></div>';
+        col.appendChild(nowLine);
+        updateNowLinePosition(nowLine);
+      }
+
+      calEvents
+        .filter(ev => ev.day === dateKey)
+        .sort((a,b) => a.startMinutes - b.startMinutes)
+        .forEach(ev => renderEventBlock(ev, col));
+
+      col.addEventListener('mousedown', (e) => onColumnMouseDown(e, col, dateKey));
+      body.appendChild(col);
+    }
+
+    document.getElementById('weekLabel').textContent = weekRangeLabel(currentWeekStart);
+  }
+
+  function updateNowLinePosition(nowLineEl){
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    nowLineEl.style.top = (nowMin / 60 * HOUR_HEIGHT) + 'px';
+  }
+
+  function renderEventBlock(ev, colEl){
+    const top = (ev.startMinutes / 60) * HOUR_HEIGHT;
+    const height = Math.max(((ev.endMinutes - ev.startMinutes) / 60) * HOUR_HEIGHT, 22);
+
+    const block = document.createElement('div');
+    block.className = 'event-block';
+    block.style.top = top + 'px';
+    block.style.height = height + 'px';
+    block.style.background = colorGradFor(ev);
+    block.dataset.id = ev.id;
+
+    const subLine = ev.type === 'repeat'
+      ? `${ev.periodLabel || ''} (${minToHHMM(ev.startMinutes)}–${minToHHMM(ev.endMinutes)})`
+      : `${minToHHMM(ev.startMinutes)}–${minToHHMM(ev.endMinutes)}`;
+
+    block.innerHTML = `
+      <button type="button" class="blk-del" title="Sil">×</button>
+      <div class="blk-title">${escapeHtml(ev.title)}</div>
+      <div class="blk-sub">${escapeHtml(subLine)}</div>
+      <div class="resize-handle"></div>
+    `;
+
+    colEl.appendChild(block);
+
+    block.querySelector('.blk-del').addEventListener('click', (e) => {
+      e.stopPropagation();
+      calEvents = calEvents.filter(x => x.id !== ev.id);
+      saveDataAll();
+      renderCalendar();
+      renderRepeatList();
+    });
+
+    block.addEventListener('mousedown', (e) => {
+      if(e.target.classList.contains('resize-handle') || e.target.classList.contains('blk-del')) return;
+      e.stopPropagation();
+      const rect = colEl.getBoundingClientRect();
+      const grabM = minutesFromClientY(e.clientY, rect);
+      dragState = {
+        mode:'move', id: ev.id, colRect: rect, colEl,
+        grabOffset: grabM - ev.startMinutes,
+        dur: ev.endMinutes - ev.startMinutes,
+        liveStart: ev.startMinutes,
+        targetDay: ev.day,
+        el: block, moved: false,
+        downX: e.clientX, downY: e.clientY
+      };
+    });
+
+    block.querySelector('.resize-handle').addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+      const rect = colEl.getBoundingClientRect();
+      dragState = {
+        mode:'resize', id: ev.id, colRect: rect, colEl,
+        originStartMinutes: ev.startMinutes, liveEnd: ev.endMinutes, el: block
+      };
+    });
+  }
+
+  function onColumnMouseDown(e, colEl, dateKey){
+    if(e.target.closest('.event-block')) return;
+    const rect = colEl.getBoundingClientRect();
+    const startM = Math.min(minutesFromClientY(e.clientY, rect), DAY_MINUTES - 15);
+    dragState = {
+      mode:'create', colRect: rect, colEl, dayKey: dateKey,
+      startMinutes: startM, endMinutes: startM + 60,
+      downX: e.clientX, downY: e.clientY, dragged:false
+    };
+    updateGhost(dragState);
+  }
+
+  function updateGhost(state){
+    if(!ghostEl){
+      ghostEl = document.createElement('div');
+      ghostEl.className = 'event-block ghost-block';
+      state.colEl.appendChild(ghostEl);
+    }
+    ghostEl.style.top = (state.startMinutes / 60 * HOUR_HEIGHT) + 'px';
+    ghostEl.style.height = Math.max(((state.endMinutes - state.startMinutes) / 60 * HOUR_HEIGHT), 22) + 'px';
+  }
+
+  function removeGhost(){
+    if(ghostEl){ ghostEl.remove(); ghostEl = null; }
+  }
+
+  document.addEventListener('mousemove', (e) => {
+    if(!dragState) return;
+
+    if(dragState.mode === 'create'){
+      const moved = Math.abs(e.clientX - dragState.downX) + Math.abs(e.clientY - dragState.downY);
+      if(moved > 5){
+        dragState.dragged = true;
+        let endM = minutesFromClientY(e.clientY, dragState.colRect);
+        if(endM <= dragState.startMinutes + 15) endM = dragState.startMinutes + 15;
+        dragState.endMinutes = Math.min(DAY_MINUTES, endM);
+        updateGhost(dragState);
+      }
+    } else if(dragState.mode === 'move'){
+      const dist = Math.abs(e.clientX - dragState.downX) + Math.abs(e.clientY - dragState.downY);
+      if(dist > 4){
+        dragState.moved = true;
+      }
+      if(dragState.moved){
+        const elementUnder = document.elementFromPoint(e.clientX, e.clientY);
+        const targetCol = elementUnder ? elementUnder.closest('.day-col') : null;
+        if(targetCol && targetCol.dataset.date){
+          if(dragState.colEl !== targetCol){
+            dragState.colEl = targetCol;
+            dragState.colRect = targetCol.getBoundingClientRect();
+            targetCol.appendChild(dragState.el);
+            dragState.targetDay = targetCol.dataset.date;
+          }
+          let newStart = minutesFromClientY(e.clientY, dragState.colRect) - dragState.grabOffset;
+          newStart = Math.round(newStart / 15) * 15;
+          newStart = Math.max(0, Math.min(DAY_MINUTES - dragState.dur, newStart));
+          dragState.liveStart = newStart;
+          dragState.el.style.top = (newStart / 60 * HOUR_HEIGHT) + 'px';
+        }
+      }
+    } else if(dragState.mode === 'resize'){
+      let endM = minutesFromClientY(e.clientY, dragState.colRect);
+      if(endM <= dragState.originStartMinutes + 15) endM = dragState.originStartMinutes + 15;
+      endM = Math.min(DAY_MINUTES, endM);
+      dragState.liveEnd = endM;
+      dragState.el.style.height = Math.max(((endM - dragState.originStartMinutes) / 60 * HOUR_HEIGHT), 22) + 'px';
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    if(!dragState) return;
+
+    if(dragState.mode === 'create'){
+      removeGhost();
+      openEventModal({
+        day: dragState.dayKey,
+        startMinutes: dragState.startMinutes,
+        endMinutes: Math.max(dragState.endMinutes, dragState.startMinutes + 15)
+      });
+    } else if(dragState.mode === 'move'){
+      if(dragState.moved){
+        const ev = calEvents.find(x => x.id === dragState.id);
+        if(ev){
+          ev.startMinutes = dragState.liveStart;
+          ev.endMinutes = ev.startMinutes + dragState.dur;
+          if(dragState.targetDay) ev.day = dragState.targetDay;
+          saveDataAll();
+        }
+        renderCalendar();
+        renderRepeatList();
+      } else {
+        const ev = calEvents.find(x => x.id === dragState.id);
+        if(ev){
+          openEventModal({
+            day: ev.day, startMinutes: ev.startMinutes, endMinutes: ev.endMinutes,
+            editId: ev.id, existingTitle: ev.title, existingColor: ev.color
+          });
+        }
+      }
+    } else if(dragState.mode === 'resize'){
+      const ev = calEvents.find(x => x.id === dragState.id);
+      if(ev){
+        ev.endMinutes = dragState.liveEnd;
+        saveDataAll();
+      }
+      renderCalendar();
+    }
+
+    dragState = null;
+  });
+
+  function renderColorPicker(selected){
+    const wrap = document.getElementById('colorPicker');
+    wrap.dataset.selected = selected;
+    wrap.innerHTML = COLORS.map(c =>
+      `<button type="button" class="color-dot ${c.key === selected ? 'selected' : ''}" data-color="${c.key}" style="background:${c.grad}"></button>`
+    ).join('');
+    wrap.querySelectorAll('.color-dot').forEach(btn => {
+      btn.addEventListener('click', () => {
+        wrap.dataset.selected = btn.dataset.color;
+        wrap.querySelectorAll('.color-dot').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
+    });
+  }
+
+  function renderWTaskColorPicker(selected){
+    const wrap = document.getElementById('wTaskColorPicker');
+    wrap.dataset.selected = selected;
+    wrap.innerHTML = COLORS.map(c =>
+      `<button type="button" class="color-dot ${c.key === selected ? 'selected' : ''}" data-color="${c.key}" style="background:${c.grad}"></button>`
+    ).join('');
+    wrap.querySelectorAll('.color-dot').forEach(btn => {
+      btn.addEventListener('click', () => {
+        wrap.dataset.selected = btn.dataset.color;
+        wrap.querySelectorAll('.color-dot').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
+    });
+  }
+
+  function renderRoutineColorPicker(selected){
+    const wrap = document.getElementById('routineColorPicker');
+    wrap.dataset.selected = selected;
+    wrap.innerHTML = COLORS.map(c =>
+      `<button type="button" class="color-dot ${c.key === selected ? 'selected' : ''}" data-color="${c.key}" style="background:${c.grad}"></button>`
+    ).join('');
+    wrap.querySelectorAll('.color-dot').forEach(btn => {
+      btn.addEventListener('click', () => {
+        wrap.dataset.selected = btn.dataset.color;
+        wrap.querySelectorAll('.color-dot').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
+    });
+  }
+
+  function openEventModal(ctx){
+    pendingEventContext = ctx;
+    const titleInput = document.getElementById('eventTitleInput');
+    const startInput = document.getElementById('eventStartTimeInput');
+    const endInput = document.getElementById('eventEndTimeInput');
+
+    titleInput.value = ctx.existingTitle || '';
+    titleInput.classList.remove('err');
+    
+    startInput.value = minToHHMM(ctx.startMinutes);
+    endInput.value = minToHHMM(ctx.endMinutes);
+
+    renderColorPicker(ctx.existingColor || 'indigo');
+    document.getElementById('eventModalTimeLabel').textContent = `${formatDisplayDate(ctx.day)}`;
+    document.getElementById('deleteEventBtn').style.display = ctx.editId ? 'inline-flex' : 'none';
+    document.getElementById('eventModal').classList.remove('hidden');
+    setTimeout(() => titleInput.focus(), 50);
+  }
+
+  function closeEventModal(){
+    document.getElementById('eventModal').classList.add('hidden');
+    pendingEventContext = null;
+  }
+
+  function initEventModal(){
+    document.getElementById('saveEventBtn').addEventListener('click', (e) => {
+      e.preventDefault();
+      const titleInput = document.getElementById('eventTitleInput');
+      const startInput = document.getElementById('eventStartTimeInput');
+      const endInput = document.getElementById('eventEndTimeInput');
+
+      const title = titleInput.value.trim();
+      if(!title){ titleInput.classList.add('err'); titleInput.focus(); return; }
+      if(!pendingEventContext) { closeEventModal(); return; }
+
+      const startMin = timeToMin(startInput.value);
+      let endMin = timeToMin(endInput.value);
+      if(endMin <= startMin){
+        endMin = Math.min(DAY_MINUTES, startMin + 30);
+      }
+
+      const color = document.getElementById('colorPicker').dataset.selected || 'indigo';
+
+      if(pendingEventContext.editId){
+        const ev = calEvents.find(e => e.id === pendingEventContext.editId);
+        if(ev){
+          ev.title = title;
+          ev.color = color;
+          ev.startMinutes = startMin;
+          ev.endMinutes = endMin;
+        }
+      } else {
+        calEvents.push({
+          id: 'evt_' + Date.now(),
+          day: pendingEventContext.day,
+          startMinutes: startMin,
+          endMinutes: endMin,
+          title, color, type: 'event'
+        });
+      }
+      saveDataAll();
+      renderCalendar();
+      renderRepeatList();
+      closeEventModal();
+    });
+
+    document.getElementById('cancelEventBtn').addEventListener('click', closeEventModal);
+
+    document.getElementById('deleteEventBtn').addEventListener('click', () => {
+      if(pendingEventContext && pendingEventContext.editId){
+        calEvents = calEvents.filter(e => e.id !== pendingEventContext.editId);
+        saveDataAll();
+        renderCalendar();
+        renderRepeatList();
+      }
+      closeEventModal();
+    });
+  }
+
+  /* --- Sayfa Değiştirme Mantığı --- */
+  function switchView(viewName){
+    const calView = document.getElementById('calendarView');
+    const qView = document.getElementById('questionBoxView');
+    const examView = document.getElementById('examScoresView');
+    const weeklyView = document.getElementById('weeklyProgramView');
+    const analysisView = document.getElementById('analysisView');
+
+    const navCalBtn = document.getElementById('navCalendarBtn');
+    const navQBtn = document.getElementById('navQuestionBtn');
+    const navExamBtn = document.getElementById('navExamBtn');
+    const navWeeklyBtn = document.getElementById('navWeeklyBtn');
+    const navAnalysisBtn = document.getElementById('navAnalysisBtn');
+    const weekNav = document.getElementById('weekNavControls');
+
+    calView.classList.add('hidden'); calView.classList.remove('flex');
+    qView.classList.add('hidden');
+    examView.classList.add('hidden');
+    weeklyView.classList.add('hidden');
+    analysisView.classList.add('hidden');
+
+    [navCalBtn, navQBtn, navExamBtn, navWeeklyBtn, navAnalysisBtn].forEach(b => {
+      b.className = "tab-btn inactive flex items-center gap-1.5";
+    });
+
+    if(viewName === 'calendar'){
+      calView.classList.remove('hidden');
+      calView.classList.add('flex');
+      navCalBtn.className = "tab-btn active flex items-center gap-1.5";
+      weekNav.style.opacity = '1';
+      weekNav.style.pointerEvents = 'auto';
+    } else if(viewName === 'question') {
+      qView.classList.remove('hidden');
+      navQBtn.className = "tab-btn active flex items-center gap-1.5";
+      weekNav.style.opacity = '0.3';
+      weekNav.style.pointerEvents = 'none';
+      renderQuestionBox();
+    } else if(viewName === 'exam') {
+      examView.classList.remove('hidden');
+      navExamBtn.className = "tab-btn active flex items-center gap-1.5";
+      weekNav.style.opacity = '0.3';
+      weekNav.style.pointerEvents = 'none';
+      renderExamsAndChart();
+    } else if(viewName === 'weekly') {
+      weeklyView.classList.remove('hidden');
+      navWeeklyBtn.className = "tab-btn active flex items-center gap-1.5";
+      weekNav.style.opacity = '0.3';
+      weekNav.style.pointerEvents = 'none';
+      renderWeeklyProgram();
+    } else if(viewName === 'analysis') {
+      analysisView.classList.remove('hidden');
+      navAnalysisBtn.className = "tab-btn active flex items-center gap-1.5";
+      weekNav.style.opacity = '0.3';
+      weekNav.style.pointerEvents = 'none';
+      renderAnalysisSystem();
+    }
+  }
+
+  /* --- 4. HAFTALIK PROGRAM MANTIĞI (Genişletilmiş Günler & Renkli Kart Düzenleme) --- */
+  function normalizeRoutineDays(routine){
+    // Rutinler artık yalnızca "Her gün" olarak çalışır.
+    return [0,1,2,3,4,5,6];
+  }
+
+  function getRoutineDaysFromForm(){
+    return [0,1,2,3,4,5,6];
+  }
+
+  function setRoutineDaysInForm(days){
+    const everyDay = document.getElementById('routineEveryDayInput');
+    if(everyDay) everyDay.checked = true;
+  }
+
+  function syncRoutineDayPicker(){
+    const everyDay = document.getElementById('routineEveryDayInput');
+    if(everyDay) everyDay.checked = true;
+  }
+
+  function resetRoutineForm(routine = null){
+    editingRoutineId = routine ? routine.id : null;
+    const days = normalizeRoutineDays(routine);
+    setRoutineDaysInForm(days);
+    document.getElementById('routineTitleInput').value = routine ? routine.title : '';
+    document.getElementById('routineNoteInput').value = routine ? (routine.note || '') : '';
+    document.getElementById('saveRoutineBtn').textContent = routine ? 'Rutini Güncelle' : 'Rutini Kaydet';
+    renderRoutineColorPicker(routine ? (routine.color || 'amber') : 'amber');
+  }
+
+  function createTaskFromRoutine(routine, dayIndex, suffix = ''){
+    const targetDay = Number(dayIndex);
+    const dayOrders = weeklyTasks
+      .filter(task => task && Number(task.dayIndex) === targetDay)
+      .map(task => Number(task.order) || 0);
+    const nextOrder = dayOrders.length ? Math.max(...dayOrders) + 1 : 0;
+
+    return {
+      id: `wt_routine_${Date.now()}_${routine.id}_${targetDay}${suffix}`,
+      routineId: routine.id,
+      dayIndex: targetDay,
+      title: routine.title || 'İsimsiz rutin',
+      note: routine.note || '',
+      color: routine.color || 'amber',
+      isRoutine: true,
+      isDone: false,
+      order: nextOrder
+    };
+  }
+
+  function createTasksFromRoutine(routine, suffix = ''){
+    const days = normalizeRoutineDays(routine);
+    return days.map((dayIndex, index) => createTaskFromRoutine(
+      routine,
+      dayIndex,
+      `${suffix}_${index}`
+    ));
+  }
+
+  function addRoutineToCurrentWeek(routine){
+    const tasks = createTasksFromRoutine(routine, '_' + weeklyTasks.length);
+    if(!tasks.length){
+      alert('Bu rutinin seçili bir günü yok. Rutini düzenleyip en az bir gün seç.');
+      return;
+    }
+    weeklyTasks.push(...tasks);
+    saveDataAll();
+    renderWeeklyProgram();
+  }
+
+  function routineDaysLabel(routine){
+    const days = normalizeRoutineDays(routine);
+    if(days.length === 7) return 'Her gün';
+    if(!days.length) return 'Gün seçilmedi';
+    return days.map(day => DAYS_FULL_TR[day]).join(', ');
+  }
+
+  function renderWeeklyRoutines(){
+    const list = document.getElementById('weeklyRoutineList');
+    if(!list) return;
+    list.innerHTML = '';
+
+    if(weeklyRoutines.length === 0){
+      list.innerHTML = '<div class="text-center text-[11px] text-slate-500 py-7 border border-dashed border-white/10 rounded-xl">Henüz rutin eklemedin.</div>';
+      return;
+    }
+
+    weeklyRoutines
+      .slice()
+      .sort((a, b) => routineDaysLabel(a).localeCompare(routineDaysLabel(b), 'tr'))
+      .forEach(routine => {
+        const item = document.createElement('div');
+        item.className = 'rounded-xl bg-white/[0.035] border border-white/10 px-3 py-3 flex items-center gap-3';
+        item.innerHTML = `
+          <div class="w-2.5 h-9 rounded-full shrink-0" style="background:${colorGradFor({color:routine.color || 'amber'})}"></div>
+          <div class="min-w-0 flex-1">
+            <div class="text-xs font-bold text-slate-100 truncate">${escapeHtml(routine.title || 'İsimsiz rutin')}</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">${escapeHtml(routineDaysLabel(routine))}${routine.note ? ' · ' + escapeHtml(routine.note) : ''}</div>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button type="button" class="add-routine-to-week rounded-lg px-2.5 py-1.5 text-[10px] font-bold text-amber-100 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-400/20" title="Aktif haftaya ekle">+ Bu hafta</button>
+            <button type="button" class="edit-weekly-routine text-slate-400 hover:text-white px-1" title="Düzenle">✏️</button>
+            <button type="button" class="delete-weekly-routine text-rose-300 hover:text-rose-100 px-1" title="Rutini sil">✕</button>
+          </div>
+        `;
+
+        item.querySelector('.add-routine-to-week').addEventListener('click', () => addRoutineToCurrentWeek(routine));
+        item.querySelector('.edit-weekly-routine').addEventListener('click', () => {
+          resetRoutineForm(routine);
+          document.getElementById('routineTitleInput').focus();
+        });
+        item.querySelector('.delete-weekly-routine').addEventListener('click', () => {
+          if(!confirm('Bu rutin silinsin mi? Aktif veya arşivdeki görevler etkilenmez.')) return;
+          weeklyRoutines = weeklyRoutines.filter(item => item.id !== routine.id);
+          saveDataAll();
+          renderWeeklyRoutines();
+        });
+        list.appendChild(item);
+      });
+  }
+
+  function cloneWeeklyTasks(tasks){
+    return JSON.parse(JSON.stringify(Array.isArray(tasks) ? tasks : []));
+  }
+
+  function archiveCurrentWeeklyPlan(){
+    if(weeklyTasks.length === 0) return false;
+
+    const archivedAt = new Date().toISOString();
+    weeklyArchives.unshift({
+      id: 'wa_' + Date.now(),
+      title: `Haftalık Program · ${new Date().toLocaleDateString('tr-TR')}`,
+      archivedAt,
+      tasks: cloneWeeklyTasks(weeklyTasks)
+    });
+    return true;
+  }
+
+  function updateWeeklyArchiveCount(){
+    const count = document.getElementById('weeklyArchiveCount');
+    if(count) count.textContent = weeklyArchives.length;
+  }
+
+  function renderWeeklyArchives(){
+    const list = document.getElementById('weeklyArchiveList');
+    if(!list) return;
+
+    updateWeeklyArchiveCount();
+    list.innerHTML = '';
+
+    if(weeklyArchives.length === 0){
+      list.innerHTML = '<div class="text-center text-sm text-slate-500 py-12 border border-dashed border-white/10 rounded-2xl">Henüz arşivlenmiş bir haftalık program yok.</div>';
+      return;
+    }
+
+    weeklyArchives.forEach(archive => {
+      const tasks = Array.isArray(archive.tasks) ? archive.tasks : [];
+      const completed = tasks.filter(task => task && task.isDone).length;
+      const dateText = archive.archivedAt
+        ? new Date(archive.archivedAt).toLocaleString('tr-TR')
+        : 'Tarih bilgisi yok';
+      const taskSummary = DAYS_FULL_TR.map((day, index) => {
+        const dayTasks = tasks.filter(task => task && task.dayIndex === index);
+        if(dayTasks.length === 0) return '';
+        return `<div class="text-[11px] text-slate-400"><span class="text-slate-300 font-semibold">${day}:</span> ${dayTasks.map(task => escapeHtml(task.title || 'İsimsiz görev')).join(', ')}</div>`;
+      }).filter(Boolean).join('');
+
+      const card = document.createElement('section');
+      card.className = 'rounded-2xl bg-white/[0.035] border border-white/10 p-4';
+      card.innerHTML = `
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-sm font-bold text-slate-100 truncate">${escapeHtml(archive.title || 'Haftalık Program')}</div>
+            <div class="text-[10px] text-slate-500 mt-1">${escapeHtml(dateText)} · ${completed}/${tasks.length} görev tamamlandı</div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button type="button" class="restore-weekly-archive rounded-xl px-3 py-2 text-[11px] font-bold text-white bg-indigo-500/70 hover:bg-indigo-500 transition-all" data-id="${archive.id}">Aç</button>
+            <button type="button" class="delete-weekly-archive w-8 h-8 rounded-xl text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-400/20 transition-all" data-id="${archive.id}" title="Arşivi sil">✕</button>
+          </div>
+        </div>
+        <div class="mt-3 pt-3 border-t border-white/8 flex flex-col gap-1.5">${taskSummary || '<div class="text-[11px] text-slate-500">Bu haftada görev yoktu.</div>'}</div>
+      `;
+
+      card.querySelector('.restore-weekly-archive').addEventListener('click', () => {
+        const selected = weeklyArchives.find(item => item.id === archive.id);
+        if(!selected) return;
+
+        const message = weeklyTasks.length
+          ? 'Bu arşivi açarsan aktif programın da arşive taşınacak. Devam edilsin mi?'
+          : 'Bu arşiv aktif haftalık program olarak açılsın mı?';
+        if(!confirm(message)) return;
+
+        archiveCurrentWeeklyPlan();
+        weeklyTasks = cloneWeeklyTasks(selected.tasks);
+        weeklyArchives = weeklyArchives.filter(item => item.id !== selected.id);
+        saveDataAll();
+        renderWeeklyProgram();
+        renderWeeklyArchives();
+        document.getElementById('weeklyArchiveModal').classList.add('hidden');
+      });
+
+      card.querySelector('.delete-weekly-archive').addEventListener('click', () => {
+        if(!confirm('Bu arşiv silinsin mi? Bu işlem geri alınamaz.')) return;
+        weeklyArchives = weeklyArchives.filter(item => item.id !== archive.id);
+        saveDataAll();
+        renderWeeklyArchives();
+      });
+
+      list.appendChild(card);
+    });
+  }
+
+  function startNewWeeklyPlan(){
+    if(weeklyTasks.length === 0){
+      alert('Aktif program zaten boş. Doğrudan görev ekleyebilirsin.');
+      return;
+    }
+    if(!confirm('Mevcut haftalık program arşivlenecek ve yeni, boş bir hafta açılacak. Devam edilsin mi?')) return;
+
+    const addRoutines = weeklyRoutines.length > 0 && confirm(`${weeklyRoutines.length} kayıtlı rutinin yeni haftaya da eklensin mi?`);
+    archiveCurrentWeeklyPlan();
+    weeklyTasks = [];
+    if(addRoutines){
+      weeklyRoutines.forEach((routine, index) => {
+        weeklyTasks.push(...createTasksFromRoutine(routine, '_' + index));
+      });
+    }
+    saveDataAll();
+    renderWeeklyProgram();
+    updateWeeklyArchiveCount();
+  }
+
+  function renderWeeklyProgram(){
+    const grid = document.getElementById('weeklyDaysGrid');
+    grid.innerHTML = '';
+    updateWeeklyArchiveCount();
+
+    DAYS_FULL_TR.forEach((dayName, dayIdx) => {
+      // Görevleri güncel sırasına göre çekiyoruz
+      const dayTasks = weeklyTasks
+        .filter(t => t.dayIndex === dayIdx)
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+        
+      const doneCount = dayTasks.filter(t => t.isDone).length;
+      
+      const col = document.createElement('div');
+      col.className = "bg-slate-900/40 border border-white/10 rounded-2xl p-4 flex flex-col gap-3 min-h-[720px] backdrop-blur-md transition-colors duration-200";
+      col.dataset.day = dayIdx;
+
+      // Sürükle-Bırak Olayları (Gün içi ve arası reorder dahil)
+      col.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        col.classList.add('bg-indigo-500/10', 'border-indigo-500/40');
+        
+        const container = col.querySelector('.wtask-container');
+        const draggable = document.querySelector('.wtask-card.opacity-40');
+        if (container && draggable) {
+          const afterElement = getDragAfterElement(container, e.clientY);
+          if (afterElement == null) {
+            container.appendChild(draggable);
+          } else {
+            container.insertBefore(draggable, afterElement);
+          }
+        }
+      });
+      
+      col.addEventListener('dragleave', () => {
+        col.classList.remove('bg-indigo-500/10', 'border-indigo-500/40');
+      });
+      
+      col.addEventListener('drop', (e) => {
+        e.preventDefault();
+        col.classList.remove('bg-indigo-500/10', 'border-indigo-500/40');
+        
+        const container = col.querySelector('.wtask-container');
+        if (container) {
+          const taskElements = container.querySelectorAll('.wtask-card');
+          taskElements.forEach((el, index) => {
+            const task = weeklyTasks.find(t => t.id === el.dataset.id);
+            if (task) {
+              task.dayIndex = dayIdx;
+              task.order = index; // Yeni sıralamayı kaydet
+            }
+          });
+          
+          weeklyTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+          saveDataAll();
+          renderWeeklyProgram(); // Durumu tazelemek ve done sayılarını düzeltmek için
+        }
+      });
+
+      let cardsHtml = '';
+      if(dayTasks.length === 0){
+        cardsHtml = `<div class="text-[11px] text-slate-500 text-center py-12 border border-dashed border-white/10 rounded-xl">Görev yok</div>`;
+      } else {
+        dayTasks.forEach(task => {
+          const cardGrad = colorGradFor({ color: task.color || 'emerald' });
+          cardsHtml += `
+            <div class="wtask-card rounded-xl p-3 flex flex-col gap-2 transition-all cursor-grab active:cursor-grabbing border border-white/20 shadow-lg ${task.isDone ? 'opacity-50' : ''}" style="background: ${cardGrad};" draggable="true" data-id="${task.id}">
+              <div class="flex items-start justify-between gap-2">
+                <span class="text-xs font-bold text-white ${task.isDone ? 'line-through opacity-75' : ''}">${escapeHtml(task.title)}</span>
+                <div class="flex items-center gap-1 shrink-0">
+                  <button type="button" class="edit-wtask-btn text-white/70 hover:text-white text-xs transition-colors px-1" data-id="${task.id}" title="Düzenle">✏️</button>
+                  <button type="button" class="del-wtask-btn text-white/70 hover:text-rose-200 text-xs transition-colors px-1" data-id="${task.id}" title="Sil">✕</button>
+                </div>
+              </div>
+              ${task.note ? `<div class="text-[10.5px] text-white/90 bg-black/25 p-2 rounded-lg leading-relaxed">${escapeHtml(task.note)}</div>` : ''}
+              <div class="flex items-center justify-between pt-1 border-t border-white/15 mt-1">
+                <button type="button" class="toggle-wtask-btn text-[10.5px] font-bold px-2.5 py-1 rounded-lg transition-all ${task.isDone ? 'bg-black/40 text-emerald-300 border border-white/20' : 'bg-black/25 text-white border border-white/20 hover:bg-black/40'}" data-id="${task.id}">
+                  ${task.isDone ? '✓ Tamamlandı' : '⭕ Tamamla'}
+                </button>
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      col.innerHTML = `
+        <div class="flex items-center justify-between pb-3 border-b border-white/10">
+          <div class="flex items-center gap-2">
+            <span class="font-display text-sm font-bold text-slate-200">${dayName}</span>
+            <span class="text-[10px] bg-white/10 text-slate-300 px-2 py-0.5 rounded-full font-semibold">${doneCount}/${dayTasks.length}</span>
+          </div>
+          <button type="button" class="add-day-task-btn w-6 h-6 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-xs flex items-center justify-center transition-all" data-day="${dayIdx}" title="Bu güne görev ekle">+</button>
+        </div>
+        <div class="wtask-container flex flex-col gap-2.5 flex-1 overflow-y-auto pr-0.5">
+          ${cardsHtml}
+        </div>
+      `;
+
+      col.querySelector('.add-day-task-btn').addEventListener('click', () => {
+        openAddWeeklyTaskModal(dayIdx);
+      });
+
+      // Kart Sürükleme Başlangıç Olayları
+      col.querySelectorAll('.wtask-card').forEach(card => {
+        card.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('text/plain', card.dataset.id);
+          card.classList.add('opacity-40');
+        });
+        card.addEventListener('dragend', () => {
+          card.classList.remove('opacity-40');
+        });
+      });
+
+      col.querySelectorAll('.toggle-wtask-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const task = weeklyTasks.find(t => t.id === btn.dataset.id);
+          if(task){
+            task.isDone = !task.isDone;
+            saveDataAll();
+            renderWeeklyProgram();
+          }
+        });
+      });
+
+      col.querySelectorAll('.edit-wtask-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const task = weeklyTasks.find(t => t.id === btn.dataset.id);
+          if(task){
+            openAddWeeklyTaskModal(task.dayIndex, task);
+          }
+        });
+      });
+
+      col.querySelectorAll('.del-wtask-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          weeklyTasks = weeklyTasks.filter(t => t.id !== btn.dataset.id);
+          saveDataAll();
+          renderWeeklyProgram();
+        });
+      });
+
+      grid.appendChild(col);
+    });
+  }
+
+  function openAddWeeklyTaskModal(defaultDayIdx = 0, editTask = null){
+    editingWTaskId = editTask ? editTask.id : null;
+    document.getElementById('wTaskModalTitle').textContent = editTask ? '📋 Görevi Düzenle' : '📋 Haftalık Görev Ekle';
+    document.getElementById('wTaskDayInput').value = String(editTask ? editTask.dayIndex : defaultDayIdx);
+    document.getElementById('wTaskTitleInput').value = editTask ? editTask.title : '';
+    document.getElementById('wTaskNoteInput').value = editTask ? (editTask.note || '') : '';
+    renderWTaskColorPicker(editTask ? (editTask.color || 'emerald') : 'emerald');
+    document.getElementById('addWeeklyTaskModal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('wTaskTitleInput').focus(), 50);
+  }
+
+  function initWeeklyProgram(){
+    migrateWeeklyRoutines();
+    document.getElementById('navWeeklyBtn').addEventListener('click', () => switchView('weekly'));
+    document.getElementById('openAddWeeklyTaskMainBtn').addEventListener('click', () => openAddWeeklyTaskModal(0));
+    document.getElementById('archiveWeeklyPlanBtn').addEventListener('click', startNewWeeklyPlan);
+    document.getElementById('openWeeklyRoutinesBtn').addEventListener('click', () => {
+      resetRoutineForm();
+      renderWeeklyRoutines();
+      document.getElementById('weeklyRoutineModal').classList.remove('hidden');
+      setTimeout(() => document.getElementById('routineTitleInput').focus(), 50);
+    });
+    document.getElementById('closeWeeklyRoutinesBtn').addEventListener('click', () => {
+      document.getElementById('weeklyRoutineModal').classList.add('hidden');
+    });
+    document.getElementById('openWeeklyArchivesBtn').addEventListener('click', () => {
+      renderWeeklyArchives();
+      document.getElementById('weeklyArchiveModal').classList.remove('hidden');
+    });
+    document.getElementById('closeWeeklyArchivesBtn').addEventListener('click', () => {
+      document.getElementById('weeklyArchiveModal').classList.add('hidden');
+    });
+
+    const routineEveryDayInput = document.getElementById('routineEveryDayInput');
+    if(routineEveryDayInput){
+      routineEveryDayInput.addEventListener('change', () => {
+        if(routineEveryDayInput.checked){
+          document.querySelectorAll('.routine-day-check').forEach(input => {
+            input.checked = false;
+            input.disabled = true;
+          });
+        } else {
+          document.querySelectorAll('.routine-day-check').forEach(input => input.disabled = false);
+        }
+      });
+    }
+
+    document.querySelectorAll('.routine-day-check').forEach(input => {
+      input.addEventListener('change', () => {
+        const checkedCount = document.querySelectorAll('.routine-day-check:checked').length;
+        if(routineEveryDayInput) routineEveryDayInput.checked = false;
+        document.querySelectorAll('.routine-day-check').forEach(dayInput => dayInput.disabled = false);
+        if(checkedCount === 7 && routineEveryDayInput){
+          routineEveryDayInput.checked = true;
+          document.querySelectorAll('.routine-day-check').forEach(dayInput => {
+            dayInput.checked = false;
+            dayInput.disabled = true;
+          });
+        }
+      });
+    });
+
+    document.getElementById('saveRoutineBtn').addEventListener('click', () => {
+      const recurrenceDays = getRoutineDaysFromForm();
+      const title = document.getElementById('routineTitleInput').value.trim();
+      const note = document.getElementById('routineNoteInput').value.trim();
+      const color = document.getElementById('routineColorPicker').dataset.selected || 'amber';
+
+      if(!title){
+        document.getElementById('routineTitleInput').focus();
+        return;
+      }
+
+      if(!recurrenceDays.length){
+        alert('Rutinin tekrarlanacağı en az bir gün seçmelisin.');
+        return;
+      }
+
+      if(editingRoutineId){
+        const routine = weeklyRoutines.find(item => item.id === editingRoutineId);
+        if(routine){
+          routine.recurrenceDays = recurrenceDays;
+          routine.dayIndex = recurrenceDays[0];
+          routine.title = title;
+          routine.note = note;
+          routine.color = color;
+        }
+      } else {
+        weeklyRoutines.push({
+          id: 'wr_' + Date.now(),
+          recurrenceDays,
+          dayIndex: recurrenceDays[0],
+          title,
+          note,
+          color
+        });
+      }
+
+      saveDataAll();
+      renderWeeklyRoutines();
+      resetRoutineForm();
+    });
+
+    document.getElementById('cancelWTaskBtn').addEventListener('click', () => {
+      document.getElementById('addWeeklyTaskModal').classList.add('hidden');
+      editingWTaskId = null;
+    });
+
+    document.getElementById('saveWTaskBtn').addEventListener('click', () => {
+      const dayIndex = parseInt(document.getElementById('wTaskDayInput').value, 10) || 0;
+      const title = document.getElementById('wTaskTitleInput').value.trim();
+      const note = document.getElementById('wTaskNoteInput').value.trim();
+      const color = document.getElementById('wTaskColorPicker').dataset.selected || 'emerald';
+
+      if(!title){
+        document.getElementById('wTaskTitleInput').focus();
+        return;
+      }
+
+      if(editingWTaskId){
+        const task = weeklyTasks.find(t => t.id === editingWTaskId);
+        if(task){
+          task.dayIndex = dayIndex;
+          task.title = title;
+          task.note = note;
+          task.color = color;
+        }
+      } else {
+        weeklyTasks.push({
+          id: 'wt_' + Date.now(),
+          dayIndex: dayIndex,
+          title: title,
+          note: note,
+          color: color,
+          isDone: false,
+          order: weeklyTasks.length // Yeni ekleneni sona atar
+        });
+      }
+
+      saveDataAll();
+      renderWeeklyProgram();
+      document.getElementById('addWeeklyTaskModal').classList.add('hidden');
+      editingWTaskId = null;
+    });
+  }
+
+  /* --- Deneme Netleri ve Grafik Mantığı --- */
+  function normalizeSubjectNets(exam){
+    const subjectNets = exam && exam.subjectNets && typeof exam.subjectNets === 'object'
+      ? exam.subjectNets
+      : {};
+
+    return subjectNets;
+  }
+
+  function examSubjectsForType(type){
+    if(type === 'TYT') return ['Türkçe', 'Matematik', 'Fen'];
+    if(type === 'AYT') return ['Matematik', 'Fen'];
+    return [];
+  }
+
+  function renderExamSubjectInputs(type, values = {}){
+    const wrap = document.getElementById('examSubjectNetGrid');
+    if(!wrap) return;
+
+    const subjects = examSubjectsForType(type);
+    wrap.className = 'exam-subject-grid' + (type === 'AYT' ? ' ayt' : '');
+    wrap.innerHTML = subjects.map(subject => `
+      <div class="exam-subject-box">
+        <div class="text-[10px] text-slate-500 font-semibold">${escapeHtml(subject)}</div>
+        <input
+          id="examSubject_${subject.replace(/[^a-zA-Z0-9]/g,'_')}"
+          data-subject="${escapeHtml(subject)}"
+          type="number"
+          min="0"
+          step="0.25"
+          placeholder="Net"
+          value="${values[subject] ?? ''}"
+          class="field-input"
+        />
+      </div>
+    `).join('');
+  }
+
+  function readExamSubjectNets(type){
+    const result = {};
+    examSubjectsForType(type).forEach(subject => {
+      const id = 'examSubject_' + subject.replace(/[^a-zA-Z0-9]/g,'_');
+      const el = document.getElementById(id);
+      if(!el) return;
+      const raw = el.value.trim();
+      result[subject] = raw === '' ? null : parseFloat(raw);
+    });
+    return result;
+  }
+
+  function normalizeSubjectTimes(exam){
+    const subjectTimes = exam && exam.subjectTimes && typeof exam.subjectTimes === 'object'
+      ? exam.subjectTimes
+      : {};
+    return subjectTimes;
+  }
+
+  function renderExamSubjectTimeInputs(type, values = {}){
+    const wrap = document.getElementById('examSubjectTimeGrid');
+    if(!wrap) return;
+
+    const subjects = examSubjectsForType(type);
+    wrap.className = 'exam-subject-grid' + (type === 'AYT' ? ' ayt' : '');
+    wrap.innerHTML = subjects.map(subject => `
+      <div class="exam-subject-box">
+        <div class="text-[10px] text-slate-500 font-semibold">${escapeHtml(subject)}</div>
+        <input
+          id="examSubjectTime_${subject.replace(/[^a-zA-Z0-9]/g,'_')}"
+          data-subject="${escapeHtml(subject)}"
+          type="number"
+          min="0"
+          step="1"
+          placeholder="Dakika"
+          value="${values[subject] ?? ''}"
+          class="field-input"
+        />
+      </div>
+    `).join('');
+  }
+
+  function readExamSubjectTimes(type){
+    const result = {};
+    examSubjectsForType(type).forEach(subject => {
+      const id = 'examSubjectTime_' + subject.replace(/[^a-zA-Z0-9]/g,'_');
+      const el = document.getElementById(id);
+      if(!el) return;
+      const raw = el.value.trim();
+      result[subject] = raw === '' ? null : parseFloat(raw);
+    });
+    return result;
+  }
+
+  function renderExamTimeAnalysis(){
+    const wrap = document.getElementById('examTimeAnalysis');
+    const subtitle = document.getElementById('examTimeSubtitle');
+    if(!wrap) return;
+
+    const type = subjectChartExamType;
+    const data = exams.filter(ex => ex.type === type && ex.subjectTimes && Object.values(ex.subjectTimes).some(v => typeof v === 'number' && !Number.isNaN(v)))
+      .slice().sort((a,b) => `${a.date || ''} ${a.id}`.localeCompare(`${b.date || ''} ${b.id}`));
+    const subjects = examSubjectsForType(type);
+
+    if(!data.length){
+      wrap.innerHTML = `<div class="text-center text-slate-500 text-xs py-6">${type} için henüz ders süresi kaydı yok. Deneme eklerken ders sürelerini dakika olarak gir.</div>`;
+      if(subtitle) subtitle.textContent = `${type} · 0 süre kaydı`;
+      return;
+    }
+
+    const latest = data[data.length - 1];
+    const previous = data.length > 1 ? data[data.length - 2] : null;
+    const latestTimes = normalizeSubjectTimes(latest);
+
+    const rows = subjects.map(subject => {
+      const vals = data.map(ex => normalizeSubjectTimes(ex)[subject]).filter(v => typeof v === 'number' && !Number.isNaN(v));
+      const avg = vals.length ? vals.reduce((a,b) => a+b, 0) / vals.length : null;
+      const latestVal = typeof latestTimes[subject] === 'number' ? latestTimes[subject] : null;
+      const prevVal = previous && typeof normalizeSubjectTimes(previous)[subject] === 'number' ? normalizeSubjectTimes(previous)[subject] : null;
+      const delta = latestVal !== null && prevVal !== null ? latestVal - prevVal : null;
+      const maxTime = Math.max(...subjects.map(s => { const v = normalizeSubjectTimes(latest)[s]; return typeof v === 'number' ? v : 0; }), 1);
+      const width = latestVal === null ? 0 : Math.max(6, Math.min(100, (latestVal / maxTime) * 100));
+      const deltaText = delta === null ? '—' : (delta > 0 ? `+${delta.toFixed(0)} dk` : `${delta.toFixed(0)} dk`);
+      const deltaClass = delta === null ? 'text-slate-500' : (delta > 0 ? 'text-amber-300' : delta < 0 ? 'text-emerald-300' : 'text-slate-400');
+      return `
+        <div class="exam-time-row">
+          <div class="text-xs font-bold text-slate-200">${escapeHtml(subject)}</div>
+          <div class="text-sm font-black text-white text-right">${latestVal !== null ? `${latestVal} dk` : '—'}</div>
+          <div class="exam-time-track"><div class="exam-time-fill" style="width:${width}%"></div></div>
+          <div class="exam-time-delta ${deltaClass} text-[10px] font-bold text-right">Ort. ${avg !== null ? `${avg.toFixed(1)} dk` : '—'} · ${deltaText}</div>
+        </div>`;
+    }).join('');
+
+    wrap.innerHTML = rows;
+    if(subtitle) subtitle.textContent = `${type} · ${data.length} deneme · sarı: daha fazla süre, yeşil: daha az süre`;
+  }
+
+  function renderExamAutoReport(exam){
+    const card = document.getElementById('examReportCard');
+    if(!card) return;
+
+    if(!exam || !exam.subjectNets || Object.values(exam.subjectNets).every(v => v === null || v === undefined || Number.isNaN(v))){
+      card.classList.add('hidden');
+      return;
+    }
+
+    const subjects = examSubjectsForType(exam.type);
+    const currentValues = normalizeSubjectNets(exam);
+    const sameType = exams
+      .filter(e => e.type === exam.type && e.id !== exam.id)
+      .sort((a,b) => `${a.date || ''} ${a.id}`.localeCompare(`${b.date || ''} ${b.id}`));
+
+    const previous = sameType.length ? sameType[sameType.length - 1] : null;
+    const previousNets = previous ? normalizeSubjectNets(previous) : {};
+
+    let totalDelta = null;
+    if(previous && typeof previous.net === 'number' && typeof exam.net === 'number'){
+      totalDelta = exam.net - previous.net;
+    }
+
+    const filled = subjects.filter(s => typeof currentValues[s] === 'number' && !Number.isNaN(currentValues[s]));
+    const best = filled.length ? [...filled].sort((a,b) => currentValues[b] - currentValues[a])[0] : null;
+
+    let improved = 0, declined = 0, stable = 0;
+    const subjectCards = subjects.map(subject => {
+      const cur = currentValues[subject];
+      const prev = previousNets[subject];
+      let delta = null;
+      let label = 'İlk kayıt';
+      if(typeof cur === 'number' && typeof prev === 'number'){
+        delta = cur - prev;
+        if(delta > 0.01){ improved++; label = `▲ ${delta.toFixed(2)}`; }
+        else if(delta < -0.01){ declined++; label = `▼ ${Math.abs(delta).toFixed(2)}`; }
+        else { stable++; label = '→ 0.00'; }
+      }
+
+      return `
+        <div class="exam-report-item">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-bold text-slate-200">${escapeHtml(subject)}</span>
+            <span class="text-[10px] font-bold ${delta > 0.01 ? 'text-emerald-300' : (delta < -0.01 ? 'text-rose-300' : 'text-slate-400')}" >${label}</span>
+          </div>
+          <div class="flex items-end justify-between mt-2">
+            <span class="text-xl font-black text-white">${typeof cur === 'number' ? cur : '—'}</span>
+            <span class="text-[10px] text-slate-500">${previous && typeof prev === 'number' ? `önceki ${prev}` : 'önceki kayıt yok'}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    document.getElementById('examReportSubtitle').textContent =
+      previous ? `${formatDisplayDate(exam.date)} · ${escapeHtml(exam.title)} · önceki ${formatDisplayDate(previous.date)}` : `${formatDisplayDate(exam.date)} · ${escapeHtml(exam.title)}`;
+
+    const trendText = totalDelta === null ? 'İlk kayıt' : (totalDelta > 0.01 ? `+${totalDelta.toFixed(2)} net` : totalDelta < -0.01 ? `${totalDelta.toFixed(2)} net` : 'Net sabit');
+    document.getElementById('examReportTrend').textContent = trendText;
+
+    document.getElementById('examReportSummary').innerHTML = `
+      <div class="exam-report-item">
+        <div class="text-[10px] text-slate-500">En yüksek ders</div>
+        <div class="text-base font-black text-white mt-1">${best ? `${escapeHtml(best)} · ${currentValues[best]}` : '—'}</div>
+      </div>
+      <div class="exam-report-item">
+        <div class="text-[10px] text-slate-500">Gelişen ders</div>
+        <div class="text-base font-black text-emerald-300 mt-1">${improved}</div>
+      </div>
+      <div class="exam-report-item">
+        <div class="text-[10px] text-slate-500">Gerileyen ders</div>
+        <div class="text-base font-black text-rose-300 mt-1">${declined}</div>
+      </div>
+    `;
+
+    document.getElementById('examReportSubjects').innerHTML = subjectCards;
+    card.classList.remove('hidden');
+  }
+
+  function renderSubjectNetChart(){
+    const canvas = document.getElementById('subjectNetChart');
+    if(!canvas) return;
+
+    const type = subjectChartExamType;
+    const chartExams = exams
+      .filter(ex => ex.type === 'TYT' || ex.type === 'AYT')
+      .slice()
+      .sort((a,b) => `${a.date || ''} ${a.id}`.localeCompare(`${b.date || ''} ${b.id}`));
+
+    const subjects = examSubjectsForType(type);
+    const labels = chartExams.filter(ex => ex.type === type).map(ex => formatDisplayDate(ex.date));
+    const dataExams = chartExams.filter(ex => ex.type === type);
+
+    const palette = ['#6366f1','#22d3ee','#34d399','#fbbf24','#f472b6'];
+    const datasets = subjects.map((subject, index) => ({
+      label: subject,
+      data: dataExams.map(ex => {
+        const v = normalizeSubjectNets(ex)[subject];
+        return typeof v === 'number' ? v : null;
+      }),
+      borderColor: palette[index % palette.length],
+      backgroundColor: 'transparent',
+      borderWidth: 2.5,
+      tension: 0.3,
+      spanGaps: true,
+      pointRadius: 4,
+      pointHoverRadius: 6
+    }));
+
+    if(subjectNetChartInstance) subjectNetChartInstance.destroy();
+
+    subjectNetChartInstance = new Chart(canvas.getContext('2d'), {
+      type:'line',
+      data:{labels, datasets},
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{
+          legend:{
+            labels:{color:'#cbd5e1',font:{family:'Inter',size:11}}
+          }
+        },
+        scales:{
+          x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#94a3b8',font:{family:'Inter',size:10}}},
+          y:{beginAtZero:true,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#94a3b8',font:{family:'Inter',size:10}}}
+        }
+      }
+    });
+
+    const subtitle = document.getElementById('subjectChartSubtitle');
+    if(subtitle){
+      subtitle.textContent = `${type} denemelerindeki ders netleri · ${dataExams.length} kayıt`;
+    }
+
+    const tytBtn = document.getElementById('subjectChartTYTBtn');
+    const aytBtn = document.getElementById('subjectChartAYTBtn');
+    if(tytBtn) tytBtn.classList.toggle('active', type === 'TYT');
+    if(aytBtn) aytBtn.classList.toggle('active', type === 'AYT');
+  }
+
+  function renderExamsAndChart(){
+    const grid = document.getElementById('examListGrid');
+    grid.innerHTML = '';
+
+    const sortedExams = [...exams].sort((a,b) => a.date.localeCompare(b.date));
+
+    if(sortedExams.length === 0){
+      grid.innerHTML = `<div class="col-span-3 text-center text-slate-500 py-10 text-sm">Henüz kaydedilmiş deneme yok. "+ Deneme / Net Ekle" butonunu kullanarak ekleyebilirsin. 📊</div>`;
+    } else {
+      sortedExams.forEach(ex => {
+        const card = document.createElement('div');
+        card.className = "bg-white/[0.03] border border-white/10 rounded-2xl p-4 flex flex-col gap-2 hover:border-violet-500/30 transition-all";
+        const typeBg = ex.type === 'TYT' ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' : (ex.type === 'AYT' ? 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30');
+        const subjectNets = normalizeSubjectNets(ex);
+        const subjectHtml = examSubjectsForType(ex.type).map(s => {
+          const v = subjectNets[s];
+          if(typeof v !== 'number') return '';
+          return `<span class="exam-subject-chip text-[10px] text-slate-400"><span>${escapeHtml(s)}</span><b class="text-slate-200">${v}</b></span>`;
+        }).filter(Boolean).join('');
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border ${typeBg}">${escapeHtml(ex.type)}</span>
+            <span class="text-[11px] text-slate-400">${formatDisplayDate(ex.date)}</span>
+          </div>
+          <div class="text-sm font-bold text-slate-100 mt-1">${escapeHtml(ex.title)}</div>
+          <div class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400 my-1">${ex.net} <span class="text-xs font-normal text-slate-400">Net</span></div>
+          ${subjectHtml ? `<div class="grid grid-cols-1 gap-1.5 mt-1">${subjectHtml}</div>` : ''}
+          ${ex.note ? `<div class="text-[11px] text-slate-400 bg-black/20 p-2 rounded-lg leading-relaxed">${escapeHtml(ex.note)}</div>` : ''}
+          <div class="flex justify-end gap-2 pt-2 border-t border-white/5 mt-auto">
+            <button type="button" class="edit-exam-btn text-slate-500 hover:text-indigo-400 text-xs transition-colors" data-id="${ex.id}">Düzenle</button>
+            <button type="button" class="del-exam-btn text-slate-500 hover:text-rose-400 text-xs transition-colors" data-id="${ex.id}">Sil</button>
+          </div>
+        `;
+
+        card.querySelector('.edit-exam-btn').addEventListener('click', () => openExamModal(ex));
+        card.querySelector('.del-exam-btn').addEventListener('click', () => {
+          exams = exams.filter(x => x.id !== ex.id);
+          saveDataAll();
+          renderExamsAndChart();
+        });
+        grid.appendChild(card);
+      });
+    }
+
+    const chartExams = sortedExams.filter(ex => ex.type === 'TYT' || ex.type === 'AYT');
+    const labels = chartExams.map(ex => formatDisplayDate(ex.date));
+    const tytData = chartExams.map(ex => ex.type === 'TYT' ? ex.net : null);
+    const aytData = chartExams.map(ex => ex.type === 'AYT' ? ex.net : null);
+
+    const canvas = document.getElementById('netChart');
+    if(canvas){
+      const ctx = canvas.getContext('2d');
+      if(netChartInstance) netChartInstance.destroy();
+      netChartInstance = new Chart(ctx, {
+        type:'line',
+        data:{labels,datasets:[
+          {label:'TYT Netleri',data:tytData,borderColor:'#6366f1',backgroundColor:'rgba(99,102,241,0.15)',borderWidth:3,tension:0.35,fill:true,spanGaps:true,pointBackgroundColor:'#818cf8',pointRadius:5},
+          {label:'AYT Netleri',data:aytData,borderColor:'#d946ef',backgroundColor:'rgba(217,70,239,0.15)',borderWidth:3,tension:0.35,fill:true,spanGaps:true,pointBackgroundColor:'#f0abfc',pointRadius:5}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#94a3b8',font:{family:'Inter',size:11}}},y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#94a3b8',font:{family:'Inter',size:11}},beginAtZero:true}}}
+      });
+    }
+
+    const latest = sortedExams.filter(ex => ex.type === 'TYT' || ex.type === 'AYT').slice(-1)[0] || null;
+    renderExamAutoReport(latest);
+    renderSubjectNetChart();
+    renderExamTimeAnalysis();
+  }
+
+  function openExamModal(editExam = null){
+    editingExamId = editExam ? editExam.id : null;
+    document.getElementById('examModalTitle').textContent = editExam ? '📊 Deneme Düzenle' : '📊 Deneme / Net Kaydı';
+    document.getElementById('examTitleInput').value = editExam ? editExam.title : '';
+    document.getElementById('examTypeInput').value = editExam ? editExam.type : 'TYT';
+    document.getElementById('examDateInput').value = editExam ? editExam.date : formatDateKey(new Date());
+    document.getElementById('examNetInput').value = editExam ? editExam.net : '';
+    document.getElementById('examNoteInput').value = editExam ? (editExam.note || '') : '';
+    renderExamSubjectInputs(editExam ? editExam.type : 'TYT', editExam ? normalizeSubjectNets(editExam) : {});
+    renderExamSubjectTimeInputs(editExam ? editExam.type : 'TYT', editExam ? normalizeSubjectTimes(editExam) : {});
+    document.getElementById('addExamModal').classList.remove('hidden');
+  }
+
+  function initExamModal(){
+    document.getElementById('openAddExamBtn').addEventListener('click', () => openExamModal(null));
+    document.getElementById('subjectChartTYTBtn').addEventListener('click', () => { subjectChartExamType = 'TYT'; renderSubjectNetChart(); renderExamTimeAnalysis(); });
+    document.getElementById('subjectChartAYTBtn').addEventListener('click', () => { subjectChartExamType = 'AYT'; renderSubjectNetChart(); renderExamTimeAnalysis(); });
+    document.getElementById('examTypeInput').addEventListener('change', () => {
+      const type = document.getElementById('examTypeInput').value;
+      renderExamSubjectInputs(type, {});
+      renderExamSubjectTimeInputs(type, {});
+    });
+
+    document.getElementById('cancelExamBtn').addEventListener('click', () => {
+      document.getElementById('addExamModal').classList.add('hidden');
+      editingExamId = null;
+    });
+
+    document.getElementById('saveExamBtn').addEventListener('click', () => {
+      const title = document.getElementById('examTitleInput').value.trim() || 'İsimsiz Deneme';
+      const type = document.getElementById('examTypeInput').value;
+      const date = document.getElementById('examDateInput').value || formatDateKey(new Date());
+      const net = parseFloat(document.getElementById('examNetInput').value) || 0;
+      const note = document.getElementById('examNoteInput').value.trim();
+      const subjectNets = readExamSubjectNets(type);
+      const subjectTimes = readExamSubjectTimes(type);
+
+      if(editingExamId){
+        const ex = exams.find(x => x.id === editingExamId);
+        if(ex){
+          ex.title = title;
+          ex.type = type;
+          ex.date = date;
+          ex.net = net;
+          ex.note = note;
+          ex.subjectNets = subjectNets;
+          ex.subjectTimes = subjectTimes;
+        }
+      } else {
+        exams.push({
+          id: 'ex_' + Date.now(),
+          title, type, date, net, note, subjectNets, subjectTimes
+        });
+      }
+
+      saveDataAll();
+      renderExamsAndChart();
+      document.getElementById('addExamModal').classList.add('hidden');
+      editingExamId = null;
+    });
+  }
+
+  /* --- Soru Kutusu Mantığı --- */
+  function updateQBadgeCount(){
+    const count = questions.filter(q => !q.isSolved).length;
+    document.getElementById('qBadgeCount').textContent = count;
+  }
+
+  function renderQuestionBox(){
+    const container = document.getElementById('questionGrid');
+    container.innerHTML = '';
+
+    if(questions.length === 0){
+      container.innerHTML = `<div class="col-span-3 text-center text-slate-500 py-16 text-sm">Henüz kayıtlı soru yok. "+ Soru Ekle" butonuna basarak yapamadığın soruları yükleyebilirsin! 📸</div>`;
+      updateQBadgeCount();
+      return;
+    }
+
+    questions.forEach(q => {
+      const card = document.createElement('div');
+      card.className = `q-card ${q.isSolved ? 'opacity-60' : ''}`;
+      
+      const imgHtml = q.image
+        ? `<img src="${q.image}" class="w-full h-44 object-cover rounded-xl border border-white/10 cursor-pointer q-thumb-img hover:opacity-90 transition-opacity" />`
+        : `<div class="w-full h-28 bg-white/5 rounded-xl flex items-center justify-center text-xs text-slate-500 border border-white/5">Görsel Yok</div>`;
+
+      card.innerHTML = `
+        ${imgHtml}
+        <div class="flex items-center justify-between mt-1">
+          <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-violet-500/20 text-violet-300 border border-violet-500/30">${escapeHtml(q.lesson)}</span>
+          <span class="text-[10px] text-slate-400">${formatDisplayDate(q.createdDay)}</span>
+        </div>
+        <div class="text-sm font-bold text-slate-100">${escapeHtml(q.topic)}</div>
+        ${q.note ? `<div class="text-[11px] text-slate-400 bg-black/20 p-2.5 rounded-lg leading-relaxed">${escapeHtml(q.note)}</div>` : ''}
+        
+        <div class="flex items-center justify-between pt-2 border-t border-white/5 mt-auto">
+          <button type="button" class="toggle-solve-btn text-xs font-semibold px-3 py-1.5 rounded-xl transition-all ${q.isSolved ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30'}" data-id="${q.id}">
+            ${q.isSolved ? '✓ Çözüldü' : '⏳ Çözülecek'}
+          </button>
+          <div class="flex items-center gap-2">
+            <button type="button" class="edit-q-btn text-slate-500 hover:text-indigo-400 text-xs px-1 py-1 transition-colors" data-id="${q.id}">Düzenle</button>
+            <button type="button" class="del-q-btn text-slate-500 hover:text-rose-400 text-xs px-1 py-1 transition-colors" data-id="${q.id}">Sil</button>
+          </div>
+        </div>
+      `;
+
+      if(q.image){
+        card.querySelector('.q-thumb-img').addEventListener('click', () => {
+          document.getElementById('fullSizeImg').src = q.image;
+          document.getElementById('imgViewerModal').classList.remove('hidden');
+        });
+      }
+
+      card.querySelector('.toggle-solve-btn').addEventListener('click', () => {
+        q.isSolved = !q.isSolved;
+        saveDataAll();
+        renderQuestionBox();
+      });
+
+      card.querySelector('.edit-q-btn').addEventListener('click', () => {
+        openAddQuestionModal(q);
+      });
+
+      card.querySelector('.del-q-btn').addEventListener('click', () => {
+        questions = questions.filter(x => x.id !== q.id);
+        saveDataAll();
+        renderQuestionBox();
+      });
+
+      container.appendChild(card);
+    });
+
+    updateQBadgeCount();
+  }
+
+  function openAddQuestionModal(editQ = null){
+    editingQuestionId = editQ ? editQ.id : null;
+    document.getElementById('questionModalTitle').textContent = editQ ? '📷 Soruyu Düzenle' : '📷 Yeni Soru Ekle';
+    document.getElementById('qLessonInput').value = editQ ? editQ.lesson : 'Matematik';
+    document.getElementById('qTopicInput').value = editQ ? editQ.topic : '';
+    document.getElementById('qNoteInput').value = editQ ? (editQ.note || '') : '';
+    
+    if(editQ && editQ.image){
+      tempBase64Image = editQ.image;
+      document.getElementById('qPreviewImg').src = tempBase64Image;
+      document.getElementById('imgPreviewWrap').classList.remove('hidden');
+      document.getElementById('imgStatusLabel').textContent = 'Mevcut Görsel ✓';
+    } else {
+      tempBase64Image = null;
+      document.getElementById('imgStatusLabel').textContent = 'Fotoğraf seçilmedi';
+      document.getElementById('imgPreviewWrap').classList.add('hidden');
+    }
+
+    document.getElementById('autoScheduleWrap').style.display = editQ ? 'none' : 'flex';
+    document.getElementById('autoScheduleCheck').checked = true;
+    document.getElementById('autoScheduleDaysInput').value = 2;
+    document.getElementById('hiddenFileInput').value = '';
+    document.getElementById('addQuestionModal').classList.remove('hidden');
+  }
+
+  function initQuestionBox(){
+    const hiddenFileInput = document.getElementById('hiddenFileInput');
+
+    document.getElementById('navCalendarBtn').addEventListener('click', () => switchView('calendar'));
+    document.getElementById('navQuestionBtn').addEventListener('click', () => switchView('question'));
+    document.getElementById('navExamBtn').addEventListener('click', () => switchView('exam'));
+
+    document.getElementById('openAddQuestionTopBtn').addEventListener('click', () => openAddQuestionModal(null));
+    document.getElementById('openAddQuestionMainBtn').addEventListener('click', () => openAddQuestionModal(null));
+
+    document.getElementById('cancelAddQBtn').addEventListener('click', () => {
+      document.getElementById('addQuestionModal').classList.add('hidden');
+      editingQuestionId = null;
+    });
+
+    document.getElementById('selectImgBtn').addEventListener('click', () => {
+      hiddenFileInput.click();
+    });
+
+    hiddenFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if(file){
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          tempBase64Image = evt.target.result;
+          document.getElementById('qPreviewImg').src = tempBase64Image;
+          document.getElementById('imgPreviewWrap').classList.remove('hidden');
+          document.getElementById('imgStatusLabel').textContent = 'Seçildi ✓';
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    document.getElementById('saveQBtn').addEventListener('click', () => {
+      const lesson = document.getElementById('qLessonInput').value;
+      const topic = document.getElementById('qTopicInput').value.trim() || 'İsimsiz Soru';
+      const note = document.getElementById('qNoteInput').value.trim();
+      const autoSchedule = document.getElementById('autoScheduleCheck').checked;
+      const reminderDaysInput = document.getElementById('autoScheduleDaysInput');
+      const reminderDays = Number(reminderDaysInput.value);
+
+      if(!editingQuestionId && autoSchedule && (!Number.isInteger(reminderDays) || reminderDays < 1 || reminderDays > 365)){
+        alert('Hatırlatma gününü 1 ile 365 arasında tam sayı olarak gir.');
+        reminderDaysInput.focus();
+        return;
+      }
+
+      if(editingQuestionId){
+        const q = questions.find(x => x.id === editingQuestionId);
+        if(q){
+          q.lesson = lesson;
+          q.topic = topic;
+          q.note = note;
+          if(tempBase64Image) q.image = tempBase64Image;
+        }
+      } else {
+        const today = new Date();
+        const todayKey = formatDateKey(today);
+
+        const qObj = {
+          id: 'q_' + Date.now(),
+          lesson, topic, note,
+          image: tempBase64Image,
+          createdDay: todayKey,
+          reminderDays: autoSchedule ? reminderDays : null,
+          isSolved: false
+        };
+
+        questions.push(qObj);
+
+        if(autoSchedule){
+          const targetDate = new Date();
+          targetDate.setDate(today.getDate() + reminderDays);
+          const targetKey = formatDateKey(targetDate);
+
+          calEvents.push({
+            id: 'evt_q_' + Date.now(),
+            day: targetKey,
+            startMinutes: 1200,
+            endMinutes: 1245,
+            title: `📸 Soru Tekrarı: ${lesson} (${topic})`,
+            color: 'rose',
+            type: 'event'
+          });
+        }
+      }
+
+      saveDataAll();
+      renderCalendar();
+      renderQuestionBox();
+      document.getElementById('addQuestionModal').classList.add('hidden');
+      editingQuestionId = null;
+    });
+
+    document.getElementById('closeImgViewerBtn').addEventListener('click', () => {
+      document.getElementById('imgViewerModal').classList.add('hidden');
+    });
+  }
+
+  function openRepeatModal(){
+    document.getElementById('topicNameInput').value = '';
+    document.getElementById('topicNameInput').classList.remove('err');
+    document.getElementById('repeatModal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('topicNameInput').focus(), 50);
+  }
+
+  function closeRepeatModal(){
+    document.getElementById('repeatModal').classList.add('hidden');
+  }
+
+  function addTopicRepeat(topicName, timeStr){
+    const [hh, mm] = (timeStr || '19:00').split(':').map(Number);
+    const startMinutes = (hh || 0) * 60 + (mm || 0);
+    const endMinutes = Math.min(DAY_MINUTES, startMinutes + 45);
+
+    const topicId = 'topic_' + Date.now();
+    const createdAt = new Date();
+    const createdDay = formatDateKey(createdAt);
+
+    const entries = REPEAT_OFFSETS.map(off => {
+      const d = new Date(createdAt);
+      d.setDate(d.getDate() + off.days);
+      return {
+        id: topicId + '_' + off.days,
+        topicId,
+        day: formatDateKey(d),
+        startMinutes, endMinutes,
+        title: `🔁 Tekrar: ${topicName}`,
+        periodLabel: off.label,
+        type: 'repeat',
+        createdDay
+      };
+    });
+
+    calEvents.push(...entries);
+    saveDataAll();
+    renderCalendar();
+    renderRepeatList();
+  }
+
+  function renderRepeatList(){
+    const container = document.getElementById('repeatList');
+    container.innerHTML = '';
+
+    const topics = {};
+    calEvents.filter(e => e.type === 'repeat').forEach(e => {
+      if(!topics[e.topicId]){
+        topics[e.topicId] = { name: e.title.replace('🔁 Tekrar: ', ''), createdDay: e.createdDay, items: [] };
+      }
+      topics[e.topicId].items.push(e);
+    });
+
+    const entries = Object.entries(topics);
+    if(entries.length === 0){
+      container.innerHTML = `<div class="text-[12px] text-slate-500 text-center py-8">Henüz konu tekrarı yok.</div>`;
+      return;
+    }
+
+    const todayKey = formatDateKey(new Date());
+
+    entries.forEach(([topicId, t]) => {
+      t.items.sort((a,b) => a.day.localeCompare(b.day));
+      const itemsHtml = t.items.map(it => {
+        const cls = it.day < todayKey ? 'is-past' : (it.day === todayKey ? 'is-today' : '');
+        return `<div class="repeat-item ${cls} cursor-pointer hover:bg-white/10" data-id="${it.id}">
+          <span class="dot"></span>
+          <span class="period">${escapeHtml(it.periodLabel)}</span>
+          <span>${formatDisplayDate(it.day)} (${minToHHMM(it.startMinutes)})</span>
+        </div>`;
+      }).join('');
+
+      const card = document.createElement('div');
+      card.className = 'repeat-card';
+      card.innerHTML = `
+        <div class="flex items-center justify-between mb-2">
+          <div>
+            <div class="text-[13px] font-bold text-slate-100">${escapeHtml(t.name)}</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">Başlangıç: ${formatDisplayDate(t.createdDay)}</div>
+          </div>
+          <button type="button" class="del-topic-btn text-slate-500 hover:text-rose-400 text-[13px]" data-topic="${topicId}">🗑</button>
+        </div>
+        <div class="flex flex-col gap-1">${itemsHtml}</div>
+      `;
+      container.appendChild(card);
+    });
+
+    container.querySelectorAll('.repeat-item').forEach(itemEl => {
+      itemEl.addEventListener('click', () => {
+        const ev = calEvents.find(x => x.id === itemEl.dataset.id);
+        if(ev){
+          openEventModal({
+            day: ev.day, startMinutes: ev.startMinutes, endMinutes: ev.endMinutes,
+            editId: ev.id, existingTitle: ev.title, existingColor: ev.color
+          });
+        }
+      });
+    });
+
+    container.querySelectorAll('.del-topic-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tid = btn.dataset.topic;
+        calEvents = calEvents.filter(e => e.topicId !== tid);
+        saveDataAll();
+        renderCalendar();
+        renderRepeatList();
+      });
+    });
+  }
+
+  function initRepeatModal(){
+    document.getElementById('openRepeatModalBtn').addEventListener('click', openRepeatModal);
+    document.getElementById('cancelRepeatBtn').addEventListener('click', closeRepeatModal);
+
+    document.getElementById('addRepeatBtn').addEventListener('click', (e) => {
+      e.preventDefault();
+      const nameInput = document.getElementById('topicNameInput');
+      const name = nameInput.value.trim();
+      if(!name){ nameInput.classList.add('err'); nameInput.focus(); return; }
+      const time = document.getElementById('topicTimeInput').value || '19:00';
+      addTopicRepeat(name, time);
+      closeRepeatModal();
+    });
+  }
+
+  function initWeekNav(){
+    document.getElementById('prevWeekBtn').addEventListener('click', () => {
+      currentWeekStart.setDate(currentWeekStart.getDate() - 7);
+      renderCalendar();
+    });
+    document.getElementById('nextWeekBtn').addEventListener('click', () => {
+      currentWeekStart.setDate(currentWeekStart.getDate() + 7);
+      renderCalendar();
+    });
+    document.getElementById('todayBtn').addEventListener('click', () => {
+      currentWeekStart = getMonday(new Date());
+      renderCalendar();
+    });
+  }
+
+
+
+  /* ========================================================= */
+  /* ANALİZ SİSTEMİ */
+  /* ========================================================= */
+
+  const ANALYSIS_TOPICS = {
+    TYT: {
+      'Türkçe': [
+        'Sözcükte Anlam','Cümlede Anlam','Paragraf','Anlatım Biçimleri',
+        'Düşünceyi Geliştirme Yolları','Ses Bilgisi','Sözcükte Yapı','İsim',
+        'Sıfat','Zamir','Zarf','Edat-Bağlaç-Ünlem','Fiil','Fiilimsi','Ek Fiil',
+        'Fiilde Çatı','Cümlenin Ögeleri','Cümle Türleri','Yazım Kuralları',
+        'Noktalama İşaretleri','Anlatım Bozuklukları'
+      ],
+      'Matematik': [
+        'Temel Kavramlar','Sayı Basamakları','Bölme ve Bölünebilme','EBOB-EKOK',
+        'Rasyonel Sayılar','Basit Eşitsizlikler','Mutlak Değer','Üslü Sayılar',
+        'Köklü Sayılar','Çarpanlara Ayırma','Oran-Orantı','Denklem Çözme',
+        'Problemler','Kümeler','Kartezyen Çarpım','Mantık','Fonksiyonlar','Polinomlar',
+        'Permütasyon','Kombinasyon','Binom','Olasılık','İstatistik',
+        'Temel Geometri','Doğruda Açılar','Üçgenler','Özel Üçgenler',
+        'Açı-Kenar Bağıntıları','Üçgende Alan','Üçgende Benzerlik','Dörtgenler',
+        'Özel Dörtgenler','Çokgenler','Çember ve Daire','Katı Cisimler'
+      ],
+      'Fizik': [
+        'Fizik Bilimine Giriş','Madde ve Özellikleri','Hareket ve Kuvvet',
+        'Newton Hareket Yasaları','Bir Boyutta Hareket','İş, Güç ve Enerji',
+        'Enerji ve Hareket','Isı, Sıcaklık ve Genleşme','Elektrostatik',
+        'Elektrik Akımı ve Devreler','Mıknatıslar ve Manyetik Alan','Basınç',
+        'Kaldırma Kuvveti','Dalgalar','Optik'
+      ],
+      'Kimya': [
+        'Kimya Bilimi','Atom ve Periyodik Sistem','Kimyasal Türler Arası Etkileşimler',
+        'Maddenin Halleri','Doğa ve Kimya','Kimyanın Temel Kanunları',
+        'Kimyasal Hesaplamalar','Karışımlar','Asitler, Bazlar ve Tuzlar','Kimya Her Yerde'
+      ],
+      'Biyoloji': [
+        'Biyoloji Bilimi','Canlıların Ortak Özellikleri','Temel Bileşikler','Hücre',
+        'Hücre Organelleri','Hücre Zarından Madde Geçişleri','Canlıların Sınıflandırılması',
+        'Hücre Bölünmeleri','Üreme','Kalıtım','Ekosistem Ekolojisi','Güncel Çevre Sorunları'
+      ]
+    },
+    AYT: {
+      'Matematik': [
+        'Fonksiyonlar','Polinomlar','İkinci Dereceden Denklemler',
+        'İkinci Dereceden Eşitsizlikler','Parabol','Karmaşık Sayılar',
+        'Permütasyon','Kombinasyon','Binom','Olasılık','Diziler','Logaritma',
+        'Üstel Fonksiyon','Trigonometri','Trigonometrik Denklemler',
+        'Limit ve Süreklilik','Türev','Türev Uygulamaları','İntegral',
+        'Belirli İntegral','İntegral Uygulamaları','Analitik Geometri','Çemberin Analitiği'
+      ],
+      'Fizik': [
+        'Vektörler','Kuvvet ve Hareket','Newton Kanunları','Bir Boyutta Hareket',
+        'İki Boyutta Hareket','Enerji ve Hareket','İtme ve Momentum','Tork ve Denge',
+        'Kütle Merkezi','Basit Makineler','Elektrik Alan ve Potansiyel','Sığa',
+        'Manyetik Alan ve Manyetik Kuvvet','İndüksiyon','Alternatif Akım','Transformatörler',
+        'Düzgün Dairesel Hareket','Dönme ve Açısal Momentum','Basit Harmonik Hareket',
+        'Dalga Mekaniği','Elektromanyetik Dalgalar','Atom Fiziğine Giriş','Radyoaktivite',
+        'Modern Fizik','Modern Fiziğin Teknolojideki Uygulamaları'
+      ],
+      'Kimya': [
+        'Modern Atom Teorisi','Gazlar','Sıvı Çözeltiler ve Çözünürlük',
+        'Kimyasal Tepkimelerde Enerji','Kimyasal Tepkimelerde Hız','Kimyasal Denge',
+        'Asit-Baz Dengesi','Çözünürlük Dengesi','Elektrokimya','Karbon Kimyasına Giriş',
+        'Organik Bileşikler','Enerji Kaynakları ve Bilimsel Gelişmeler'
+      ],
+      'Biyoloji': [
+        'Sinir Sistemi','Endokrin Sistem','Duyu Organları','Destek ve Hareket Sistemi',
+        'Sindirim Sistemi','Dolaşım ve Bağışıklık Sistemi','Solunum Sistemi','Üriner Sistem',
+        'Üreme Sistemi ve Embriyonik Gelişim','Komünite Ekolojisi','Popülasyon Ekolojisi',
+        'Nükleik Asitler','DNA ve RNA','Genetik Şifre ve Protein Sentezi',
+        'Genetik Mühendisliği ve Biyoteknoloji','Fotosentez','Kemosentez','Hücresel Solunum',
+        'Bitki Biyolojisi','Canlılar ve Çevre'
+      ]
+    }
+  };
+
+  function analysisTopicKey(type, lesson, topic){
+    return `${type}__${lesson}__${topic}`;
+  }
+
+  function analysisNormalize(){
+    if(!analysisRecords || typeof analysisRecords !== 'object' || Array.isArray(analysisRecords)) analysisRecords = {};
+    if(!Array.isArray(analysisAttempts)) analysisAttempts = [];
+
+    Object.values(analysisRecords).forEach(rec => {
+      if(!rec || typeof rec !== 'object') return;
+      if(!Array.isArray(rec.history)) rec.history = [];
+      if(typeof rec.consecutiveWrong !== 'number') rec.consecutiveWrong = 0;
+      if(typeof rec.warning !== 'boolean') rec.warning = rec.consecutiveWrong >= 3;
+      if(typeof rec.currentStatus !== 'string') rec.currentStatus = '';
+      if(typeof rec.currentReason !== 'string') rec.currentReason = '';
+    });
+  }
+
+  function analysisGetRecord(type, lesson, topic){
+    analysisNormalize();
+    const key = analysisTopicKey(type, lesson, topic);
+
+    if(!analysisRecords[key]){
+      analysisRecords[key] = {
+        type,
+        lesson,
+        topic,
+        history: [],
+        consecutiveWrong: 0,
+        warning: false,
+        currentStatus: '',
+        currentReason: ''
+      };
+    }
+
+    return analysisRecords[key];
+  }
+
+  function analysisTotalTopicCount(){
+    return Object.values(ANALYSIS_TOPICS[analysisExamType] || {}).reduce((sum, arr) => sum + arr.length, 0);
+  }
+
+  function analysisCurrentAnsweredCount(){
+    return Object.values(analysisRecords).filter(r => r && r.type === analysisExamType && r.currentStatus).length;
+  }
+
+  function analysisWarningCount(){
+    return Object.values(analysisRecords).filter(r => r && r.type === analysisExamType && r.warning).length;
+  }
+
+  function analysisAttemptLabel(attempt){
+    return attempt.title || `${attempt.type} Denemesi`;
+  }
+
+  function analysisCreateNewAttempt(){
+    analysisMode = 'new';
+    analysisCurrentAttemptId = 'draft_' + Date.now();
+
+    Object.values(analysisRecords).forEach(rec => {
+      if(rec && rec.type === analysisExamType){
+        rec.currentStatus = '';
+        rec.currentReason = '';
+      }
+    });
+
+    saveDataAll();
+    renderAnalysisSystem();
+  }
+
+  function analysisOpenAttempt(attemptId){
+    const attempt = analysisAttempts.find(a => a.id === attemptId);
+    if(!attempt) return;
+
+    analysisExamType = attempt.type;
+    analysisMode = 'edit';
+    analysisCurrentAttemptId = attempt.id;
+
+    Object.values(analysisRecords).forEach(rec => {
+      if(rec && rec.type === analysisExamType){
+        const result = attempt.results[analysisTopicKey(rec.type, rec.lesson, rec.topic)];
+        rec.currentStatus = result ? (result.status || '') : '';
+        rec.currentReason = result ? (result.reason || '') : '';
+      }
+    });
+
+    renderAnalysisSystem();
+  }
+
+  function analysisSetStatus(type, lesson, topic, status){
+    const rec = analysisGetRecord(type, lesson, topic);
+    rec.currentStatus = status;
+    if(status !== 'wrong') rec.currentReason = '';
+
+    const rows = [...document.querySelectorAll('.analysis-topic-row')];
+    const row = rows.find(el => {
+      const b = el.querySelector('[data-action="status"]');
+      return b && b.dataset.type === type && b.dataset.lesson === lesson && b.dataset.topic === topic;
+    });
+
+    if(!row){ renderAnalysisSystem(); return; }
+
+    row.querySelectorAll('[data-action="status"]').forEach(btn => {
+      btn.classList.remove('selected','correct','wrong','blank');
+      if(btn.dataset.status === status) btn.classList.add('selected', status);
+    });
+
+    const input = row.querySelector('[data-action="reason"]');
+    if(input){
+      input.readOnly = status !== 'wrong';
+      input.classList.toggle('disabled-look', status !== 'wrong');
+      if(status === 'wrong'){
+        setTimeout(() => input.focus(), 0);
+      } else {
+        input.value = '';
+      }
+    }
+
+    document.getElementById('analysisAnsweredCount').textContent = analysisCurrentAnsweredCount();
+    saveDataAll();
+  }
+
+  let analysisReasonSaveTimer = null;
+
+  function analysisSaveReason(type, lesson, topic, reason){
+    const rec = analysisGetRecord(type, lesson, topic);
+    rec.currentReason = reason;
+    clearTimeout(analysisReasonSaveTimer);
+    analysisReasonSaveTimer = setTimeout(() => saveDataAll(), 180);
+  }
+
+  function analysisSaveAttempt(){
+    const answered = analysisCurrentAnsweredCount();
+
+    if(answered === 0){
+      alert('Önce en az bir konuda Doğru, Yanlış veya Boş seç.');
+      return;
+    }
+
+    const now = new Date();
+    const attemptId = analysisCurrentAttemptId || ('an_' + Date.now());
+    const existingIndex = analysisAttempts.findIndex(a => a.id === attemptId);
+    const previousAttempt = existingIndex >= 0 ? analysisAttempts[existingIndex] : null;
+
+    const results = {};
+
+    Object.entries(analysisRecords).forEach(([key, rec]) => {
+      if(!rec || rec.type !== analysisExamType || !rec.currentStatus) return;
+      results[key] = {
+        status: rec.currentStatus,
+        reason: rec.currentStatus === 'wrong' ? (rec.currentReason || '') : ''
+      };
+    });
+
+    const attempt = {
+      id: attemptId,
+      type: analysisExamType,
+      date: previousAttempt ? previousAttempt.date : formatDateKey(now),
+      time: previousAttempt ? previousAttempt.time : `${pad2(now.getHours())}:${pad2(now.getMinutes())}`,
+      title: previousAttempt ? previousAttempt.title : `${analysisExamType} Genel Deneme`,
+      results
+    };
+
+    if(existingIndex >= 0){
+      analysisAttempts[existingIndex] = attempt;
+    } else {
+      analysisAttempts.unshift(attempt);
+    }
+
+    /* Geçmiş seriyi yeniden hesapla: eski sonuçlar + güncel deneme */
+    Object.entries(analysisRecords).forEach(([key, rec]) => {
+      if(!rec || rec.type !== analysisExamType) return;
+
+      const oldHistory = Array.isArray(rec.history) ? rec.history : [];
+      const history = oldHistory.filter(h => {
+        if(!h || !h.attemptId) return true;
+        return analysisAttempts.some(a => a.id === h.attemptId && a !== attempt);
+      });
+
+      /* Aynı denemeye ait eski kaydı çıkar */
+      const cleaned = history.filter(h => h.attemptId !== attempt.id);
+      const status = rec.currentStatus;
+      const reason = rec.currentReason || '';
+
+      if(status){
+        cleaned.push({
+          attemptId: attempt.id,
+          status,
+          reason: status === 'wrong' ? reason : '',
+          date: attempt.date
+        });
+      }
+
+      rec.history = cleaned;
+
+      /* Son 3 denemeyi kronolojik sırayla kontrol et */
+      const relevantAttempts = analysisAttempts
+        .filter(a => a.type === analysisExamType)
+        .slice()
+        .reverse();
+
+      let consecutive = 0;
+      for(let i = relevantAttempts.length - 1; i >= 0; i--){
+        const a = relevantAttempts[i];
+        const result = a.results[key];
+        if(!result || !result.status) break;
+        if(result.status === 'wrong') consecutive++;
+        else break;
+      }
+
+      rec.consecutiveWrong = consecutive;
+      rec.warning = consecutive >= 3;
+      rec.currentStatus = '';
+      rec.currentReason = '';
+    });
+
+    analysisMode = 'new';
+    analysisCurrentAttemptId = null;
+    analysisRecalculateAllWarnings();
+
+    saveDataAll();
+    renderAnalysisSystem();
+  }
+
+  function analysisRecalculateAllWarnings(){
+    analysisNormalize();
+
+    Object.entries(ANALYSIS_TOPICS).forEach(([type, lessons]) => {
+      Object.entries(lessons).forEach(([lesson, topics]) => {
+        topics.forEach(topic => {
+          const rec = analysisGetRecord(type, lesson, topic);
+          const key = analysisTopicKey(type, lesson, topic);
+          const sortedAttempts = analysisAttempts
+            .filter(a => a && a.type === type)
+            .slice()
+            .sort((a,b) => {
+              const ad = `${a.date || ''} ${a.time || ''}`;
+              const bd = `${b.date || ''} ${b.time || ''}`;
+              return ad.localeCompare(bd);
+            });
+
+          let consecutive = 0;
+          for(let i = sortedAttempts.length - 1; i >= 0; i--){
+            const result = (sortedAttempts[i].results || {})[key];
+            if(!result || !result.status) break;
+            if(result.status === 'wrong') consecutive++;
+            else break;
+          }
+
+          rec.consecutiveWrong = consecutive;
+          rec.warning = consecutive >= 3;
+        });
+      });
+    });
+  }
+
+  function analysisDeleteAttempt(attemptId){
+    const attempt = analysisAttempts.find(a => a.id === attemptId);
+    if(!attempt) return;
+
+    const ok = confirm(`${analysisAttemptLabel(attempt)} kaydını silmek istediğine emin misin? Bu işlem geri alınamaz.`);
+    if(!ok) return;
+
+    analysisAttempts = analysisAttempts.filter(a => a.id !== attemptId);
+
+    if(analysisCurrentAttemptId === attemptId){
+      analysisCurrentAttemptId = null;
+      analysisMode = 'new';
+      Object.values(analysisRecords).forEach(rec => {
+        if(rec && rec.type === analysisExamType){
+          rec.currentStatus = '';
+          rec.currentReason = '';
+        }
+      });
+    }
+
+    analysisRecalculateAllWarnings();
+    saveDataAll();
+    renderAnalysisSystem();
+  }
+
+  function analysisResetWarning(type, lesson, topic){
+    const rec = analysisGetRecord(type, lesson, topic);
+    rec.consecutiveWrong = 0;
+    rec.warning = false;
+    rec.currentStatus = '';
+    rec.currentReason = '';
+
+    /* İlgili konunun geçmişteki son yanlış zincirini de kapatmak yerine,
+       sadece aktif uyarıyı sıfırlıyoruz. Böylece geçmiş denemeler bozulmaz. */
+    saveDataAll();
+    renderAnalysisSystem();
+  }
+
+  function renderAnalysisHistory(){
+    const list = document.getElementById('analysisHistoryList');
+    const count = document.getElementById('analysisHistoryCount');
+    if(!list || !count) return;
+
+    const filtered = analysisAttempts.filter(a => a.type === analysisExamType);
+    count.textContent = filtered.length;
+    list.innerHTML = '';
+
+    if(filtered.length === 0){
+      list.innerHTML = `<div class="text-center text-[11px] text-slate-500 py-12">Henüz ${analysisExamType} denemesi kaydedilmedi.</div>`;
+      return;
+    }
+
+    filtered.forEach(attempt => {
+      const item = document.createElement('div');
+      item.className = 'analysis-history-card' + (analysisMode === 'edit' && analysisCurrentAttemptId === attempt.id ? ' selected' : '');
+
+      const resultCount = Object.keys(attempt.results || {}).length;
+      const wrongCount = Object.values(attempt.results || {}).filter(r => r && r.status === 'wrong').length;
+
+      item.innerHTML = `
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0 flex-1">
+            <div class="text-xs font-bold text-slate-100 truncate">${escapeHtml(analysisAttemptLabel(attempt))}</div>
+            <div class="text-[10px] text-slate-500 mt-1">${formatDisplayDate(attempt.date)} · ${escapeHtml(attempt.time || '')}</div>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <span class="analysis-history-pill">${attempt.type}</span>
+            <button type="button" class="analysis-history-delete" title="Denemeyi sil" data-delete-attempt="${attempt.id}">🗑</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 mt-3 text-[10px] text-slate-400">
+          <span>İşaretli: <b class="text-slate-200">${resultCount}</b></span>
+          <span>Yanlış: <b class="text-rose-300">${wrongCount}</b></span>
+        </div>
+      `;
+
+      item.addEventListener('click', (e) => {
+        if(e.target.closest('[data-delete-attempt]')) return;
+        analysisOpenAttempt(attempt.id);
+      });
+
+      item.querySelector('[data-delete-attempt]').addEventListener('click', (e) => {
+        e.stopPropagation();
+        analysisDeleteAttempt(attempt.id);
+      });
+
+      list.appendChild(item);
+    });
+  }
+
+  function renderAnalysisSystem(){
+    analysisNormalize();
+
+    const lessonsWrap = document.getElementById('analysisLessonsWrap');
+    if(!lessonsWrap) return;
+
+    document.getElementById('analysisTYTBtn').classList.toggle('active', analysisExamType === 'TYT');
+    document.getElementById('analysisAYTBtn').classList.toggle('active', analysisExamType === 'AYT');
+
+    document.getElementById('analysisTotalTopics').textContent = analysisTotalTopicCount();
+    document.getElementById('analysisAnsweredCount').textContent = analysisCurrentAnsweredCount();
+    document.getElementById('analysisWarningCount').textContent = analysisWarningCount();
+
+    const modeTitle = document.getElementById('analysisModeTitle');
+    if(analysisMode === 'edit'){
+      const attempt = analysisAttempts.find(a => a.id === analysisCurrentAttemptId);
+      modeTitle.textContent = `Düzenleniyor: ${attempt ? analysisAttemptLabel(attempt) : analysisExamType + ' Denemesi'}`;
+    } else {
+      modeTitle.textContent = `Yeni ${analysisExamType} Denemesi`;
+    }
+
+    lessonsWrap.innerHTML = '';
+
+    Object.entries(ANALYSIS_TOPICS[analysisExamType] || {}).forEach(([lesson, topics]) => {
+      const card = document.createElement('section');
+      card.className = 'analysis-lesson-card';
+
+      const rows = topics.map(topic => {
+        const rec = analysisGetRecord(analysisExamType, lesson, topic);
+        const status = rec.currentStatus || '';
+        const warning = rec.warning;
+
+        return `
+          <div class="analysis-topic-row">
+            <div class="analysis-topic-title">
+              <div class="analysis-topic-name">
+                ${escapeHtml(topic)}
+                ${warning ? '<span class="analysis-warning" title="Üst üste 3 denemede yanlış">!</span>' : ''}
+              </div>
+              <div class="text-[10px] text-slate-500 mt-1">Yanlış serisi: ${rec.consecutiveWrong || 0}</div>
+            </div>
+
+            <div>
+              <div class="analysis-mobile-label">Doğru</div>
+              <button type="button" class="analysis-choice ${status === 'correct' ? 'selected correct' : ''}" data-action="status" data-status="correct" data-type="${escapeHtml(analysisExamType)}" data-lesson="${escapeHtml(lesson)}" data-topic="${escapeHtml(topic)}">✓ Doğru</button>
+            </div>
+
+            <div>
+              <div class="analysis-mobile-label">Yanlış</div>
+              <button type="button" class="analysis-choice ${status === 'wrong' ? 'selected wrong' : ''}" data-action="status" data-status="wrong" data-type="${escapeHtml(analysisExamType)}" data-lesson="${escapeHtml(lesson)}" data-topic="${escapeHtml(topic)}">✕ Yanlış</button>
+            </div>
+
+            <div>
+              <div class="analysis-mobile-label">Boş</div>
+              <button type="button" class="analysis-choice ${status === 'blank' ? 'selected blank' : ''}" data-action="status" data-status="blank" data-type="${escapeHtml(analysisExamType)}" data-lesson="${escapeHtml(lesson)}" data-topic="${escapeHtml(topic)}">— Boş</button>
+            </div>
+
+            <div class="analysis-reason-wrap">
+              <div class="flex-1 min-w-0">
+                <div class="analysis-mobile-label">Yanlış Sebebi</div>
+                <textarea
+                  class="analysis-reason ${status === 'wrong' ? '' : 'disabled-look'}"
+                  rows="1"
+                  placeholder="Yanlış seçince buraya yazabilirsin..."
+                  data-action="reason"
+                  data-type="${escapeHtml(analysisExamType)}"
+                  data-lesson="${escapeHtml(lesson)}"
+                  data-topic="${escapeHtml(topic)}"
+                  ${status === 'wrong' ? '' : 'readonly'}
+                >${escapeHtml(rec.currentReason || '')}</textarea>
+              </div>
+              ${warning ? `<button type="button" class="analysis-repeat-btn" data-action="repeat" data-type="${escapeHtml(analysisExamType)}" data-lesson="${escapeHtml(lesson)}" data-topic="${escapeHtml(topic)}">Tekrar Ettim</button>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      card.innerHTML = `
+        <div class="analysis-lesson-head">
+          <div>
+            <div class="font-display text-sm font-bold text-white">${escapeHtml(lesson)}</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">${topics.length} konu</div>
+          </div>
+          <div class="text-[10px] text-slate-500">Doğru / Yanlış / Boş / Yanlış Sebebi</div>
+        </div>
+        <div>${rows}</div>
+      `;
+
+      lessonsWrap.appendChild(card);
+    });
+
+    lessonsWrap.querySelectorAll('[data-action="status"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        analysisSetStatus(btn.dataset.type, btn.dataset.lesson, btn.dataset.topic, btn.dataset.status);
+      });
+    });
+
+    lessonsWrap.querySelectorAll('[data-action="reason"]').forEach(input => {
+      input.addEventListener('focus', () => {
+        /* Sebep alanı gerçekten her zaman tıklanabilir; yanlış seçilmediyse sadece uyarı veriyoruz. */
+        if(input.value === '' && input.classList.contains('disabled-look')){
+          input.placeholder = 'Önce "Yanlış" seçersen sebebi yazabilirsin...';
+        }
+      });
+
+      input.addEventListener('input', () => {
+        analysisSaveReason(input.dataset.type, input.dataset.lesson, input.dataset.topic, input.value);
+      });
+
+      input.addEventListener('click', () => {
+        const rec = analysisGetRecord(input.dataset.type, input.dataset.lesson, input.dataset.topic);
+        if(rec.currentStatus !== 'wrong'){
+          const buttons = lessonsWrap.querySelectorAll(`[data-action="status"][data-status="wrong"][data-type="${CSS.escape(input.dataset.type)}"][data-lesson="${CSS.escape(input.dataset.lesson)}"][data-topic="${CSS.escape(input.dataset.topic)}"]`);
+          if(buttons[0]) buttons[0].focus();
+        }
+      });
+    });
+
+    lessonsWrap.querySelectorAll('[data-action="repeat"]').forEach(btn => {
+      btn.addEventListener('click', () => analysisResetWarning(btn.dataset.type, btn.dataset.lesson, btn.dataset.topic));
+    });
+
+    renderAnalysisHistory();
+  }
+
+  function initAnalysisSystem(){
+    document.getElementById('navAnalysisBtn').addEventListener('click', () => switchView('analysis'));
+
+    document.getElementById('analysisTYTBtn').addEventListener('click', () => {
+      analysisExamType = 'TYT';
+      analysisMode = 'new';
+      analysisCurrentAttemptId = null;
+      renderAnalysisSystem();
+    });
+
+    document.getElementById('analysisAYTBtn').addEventListener('click', () => {
+      analysisExamType = 'AYT';
+      analysisMode = 'new';
+      analysisCurrentAttemptId = null;
+      renderAnalysisSystem();
+    });
+
+    document.getElementById('analysisNewAttemptBtn').addEventListener('click', analysisCreateNewAttempt);
+    document.getElementById('analysisSaveAttemptBtn').addEventListener('click', analysisSaveAttempt);
+  }
+
+  function init(){
+    loadDataAll(() => {
+      buildTimeGutter();
+      renderCalendar();
+      renderRepeatList();
+      initQuestionBox();
+      initExamModal();
+      initWeeklyProgram();
+      initWeekNav();
+      initDataSettings();
+      initRepeatModal();
+      initEventModal();
+      initAnalysisSystem();
+      analysisNormalize();
+      analysisRecalculateAllWarnings();
+      updateQBadgeCount();
+      document.getElementById('calendarWrap').scrollTop = 6 * HOUR_HEIGHT;
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+
+<script>
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>

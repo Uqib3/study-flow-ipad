@@ -1,0 +1,11 @@
+{
+  "name": "Study Flow · YKS Akıllı Ders Planlayıcı",
+  "short_name": "Study Flow",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "orientation": "any",
+  "lang": "tr-TR",
+  "icons": []
+}
