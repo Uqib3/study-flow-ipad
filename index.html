@@ -243,6 +243,7 @@
     .event-block{padding:8px 10px;}
     .resize-handle{height:14px;}
     .blk-del{width:24px !important;height:24px !important;line-height:21px !important;}
+    .day-col{touch-action:none;}
     .wtask-card{touch-action:none;}
   }
 </style>
@@ -825,6 +826,7 @@
 
   let currentWeekStart = getMonday(new Date());
   let dragState = null;
+  let weeklyTouchDrag = null;
   let ghostEl = null;
   let pendingEventContext = null;
   let tempBase64Image = null;
@@ -1134,6 +1136,9 @@
         .forEach(ev => renderEventBlock(ev, col));
 
       col.addEventListener('mousedown', (e) => onColumnMouseDown(e, col, dateKey));
+      col.addEventListener('pointerdown', (e) => {
+        if(e.pointerType !== 'mouse') onColumnPointerDown(e, col, dateKey);
+      });
       body.appendChild(col);
     }
 
@@ -1180,38 +1185,71 @@
 
     block.addEventListener('mousedown', (e) => {
       if(e.target.classList.contains('resize-handle') || e.target.classList.contains('blk-del')) return;
-      e.stopPropagation();
-      const rect = colEl.getBoundingClientRect();
-      const grabM = minutesFromClientY(e.clientY, rect);
-      dragState = {
-        mode:'move', id: ev.id, colRect: rect, colEl,
-        grabOffset: grabM - ev.startMinutes,
-        dur: ev.endMinutes - ev.startMinutes,
-        liveStart: ev.startMinutes,
-        targetDay: ev.day,
-        el: block, moved: false,
-        downX: e.clientX, downY: e.clientY
-      };
+      startEventMove(e, ev, colEl, block);
+    });
+
+    block.addEventListener('pointerdown', (e) => {
+      if(e.pointerType === 'mouse' || e.target.closest('.resize-handle, .blk-del')) return;
+      e.preventDefault();
+      startEventMove(e, ev, colEl, block, e.pointerId);
+      block.setPointerCapture?.(e.pointerId);
     });
 
     block.querySelector('.resize-handle').addEventListener('mousedown', (e) => {
+      startEventResize(e, ev, colEl, block);
+    });
+    block.querySelector('.resize-handle').addEventListener('pointerdown', (e) => {
+      if(e.pointerType === 'mouse') return;
+      e.preventDefault();
       e.stopPropagation();
-      const rect = colEl.getBoundingClientRect();
-      dragState = {
-        mode:'resize', id: ev.id, colRect: rect, colEl,
-        originStartMinutes: ev.startMinutes, liveEnd: ev.endMinutes, el: block
-      };
+      startEventResize(e, ev, colEl, block, e.pointerId);
+      block.setPointerCapture?.(e.pointerId);
     });
   }
 
+  function startEventMove(e, ev, colEl, block, pointerId = null){
+    e.stopPropagation();
+    const rect = colEl.getBoundingClientRect();
+    const grabM = minutesFromClientY(e.clientY, rect);
+    dragState = {
+      mode:'move', id: ev.id, colRect: rect, colEl,
+      grabOffset: grabM - ev.startMinutes,
+      dur: ev.endMinutes - ev.startMinutes,
+      liveStart: ev.startMinutes,
+      targetDay: ev.day,
+      el: block, moved: false,
+      downX: e.clientX, downY: e.clientY, pointerId
+    };
+  }
+
+  function startEventResize(e, ev, colEl, block, pointerId = null){
+    e.stopPropagation();
+    const rect = colEl.getBoundingClientRect();
+    dragState = {
+      mode:'resize', id: ev.id, colRect: rect, colEl,
+      originStartMinutes: ev.startMinutes, liveEnd: ev.endMinutes, el: block, pointerId
+    };
+  }
+
   function onColumnMouseDown(e, colEl, dateKey){
+    startCalendarCreate(e, colEl, dateKey);
+  }
+
+  function onColumnPointerDown(e, colEl, dateKey){
+    if(e.target.closest('.event-block')) return;
+    e.preventDefault();
+    startCalendarCreate(e, colEl, dateKey, e.pointerId);
+    colEl.setPointerCapture?.(e.pointerId);
+  }
+
+  function startCalendarCreate(e, colEl, dateKey, pointerId = null){
     if(e.target.closest('.event-block')) return;
     const rect = colEl.getBoundingClientRect();
     const startM = Math.min(minutesFromClientY(e.clientY, rect), DAY_MINUTES - 15);
     dragState = {
       mode:'create', colRect: rect, colEl, dayKey: dateKey,
       startMinutes: startM, endMinutes: startM + 60,
-      downX: e.clientX, downY: e.clientY, dragged:false
+      downX: e.clientX, downY: e.clientY, dragged:false, pointerId
     };
     updateGhost(dragState);
   }
@@ -1230,25 +1268,25 @@
     if(ghostEl){ ghostEl.remove(); ghostEl = null; }
   }
 
-  document.addEventListener('mousemove', (e) => {
+  function handleCalendarDragMove(clientX, clientY){
     if(!dragState) return;
 
     if(dragState.mode === 'create'){
-      const moved = Math.abs(e.clientX - dragState.downX) + Math.abs(e.clientY - dragState.downY);
+      const moved = Math.abs(clientX - dragState.downX) + Math.abs(clientY - dragState.downY);
       if(moved > 5){
         dragState.dragged = true;
-        let endM = minutesFromClientY(e.clientY, dragState.colRect);
+        let endM = minutesFromClientY(clientY, dragState.colRect);
         if(endM <= dragState.startMinutes + 15) endM = dragState.startMinutes + 15;
         dragState.endMinutes = Math.min(DAY_MINUTES, endM);
         updateGhost(dragState);
       }
     } else if(dragState.mode === 'move'){
-      const dist = Math.abs(e.clientX - dragState.downX) + Math.abs(e.clientY - dragState.downY);
+      const dist = Math.abs(clientX - dragState.downX) + Math.abs(clientY - dragState.downY);
       if(dist > 4){
         dragState.moved = true;
       }
       if(dragState.moved){
-        const elementUnder = document.elementFromPoint(e.clientX, e.clientY);
+        const elementUnder = document.elementFromPoint(clientX, clientY);
         const targetCol = elementUnder ? elementUnder.closest('.day-col') : null;
         if(targetCol && targetCol.dataset.date){
           if(dragState.colEl !== targetCol){
@@ -1257,7 +1295,7 @@
             targetCol.appendChild(dragState.el);
             dragState.targetDay = targetCol.dataset.date;
           }
-          let newStart = minutesFromClientY(e.clientY, dragState.colRect) - dragState.grabOffset;
+          let newStart = minutesFromClientY(clientY, dragState.colRect) - dragState.grabOffset;
           newStart = Math.round(newStart / 15) * 15;
           newStart = Math.max(0, Math.min(DAY_MINUTES - dragState.dur, newStart));
           dragState.liveStart = newStart;
@@ -1265,15 +1303,15 @@
         }
       }
     } else if(dragState.mode === 'resize'){
-      let endM = minutesFromClientY(e.clientY, dragState.colRect);
+      let endM = minutesFromClientY(clientY, dragState.colRect);
       if(endM <= dragState.originStartMinutes + 15) endM = dragState.originStartMinutes + 15;
       endM = Math.min(DAY_MINUTES, endM);
       dragState.liveEnd = endM;
       dragState.el.style.height = Math.max(((endM - dragState.originStartMinutes) / 60 * HOUR_HEIGHT), 22) + 'px';
     }
-  });
+  }
 
-  document.addEventListener('mouseup', () => {
+  function finishCalendarDrag(){
     if(!dragState) return;
 
     if(dragState.mode === 'create'){
@@ -1313,6 +1351,33 @@
     }
 
     dragState = null;
+  }
+
+  document.addEventListener('mousemove', (e) => {
+    if(!dragState || dragState.pointerId !== null) return;
+    handleCalendarDragMove(e.clientX, e.clientY);
+  });
+
+  document.addEventListener('mouseup', () => {
+    if(dragState && dragState.pointerId === null) finishCalendarDrag();
+  });
+
+  document.addEventListener('pointermove', (e) => {
+    if(!dragState || dragState.pointerId !== e.pointerId) return;
+    e.preventDefault();
+    handleCalendarDragMove(e.clientX, e.clientY);
+  }, { passive:false });
+
+  document.addEventListener('pointerup', (e) => {
+    if(dragState && dragState.pointerId === e.pointerId) finishCalendarDrag();
+  });
+
+  document.addEventListener('pointercancel', (e) => {
+    if(dragState && dragState.pointerId === e.pointerId){
+      removeGhost();
+      renderCalendar();
+      dragState = null;
+    }
   });
 
   function renderColorPicker(selected){
@@ -1729,6 +1794,95 @@
     updateWeeklyArchiveCount();
   }
 
+  function clearWeeklyDragHighlights(){
+    document.querySelectorAll('.weekly-day-col').forEach(col => {
+      col.classList.remove('bg-indigo-500/10', 'border-indigo-500/40');
+    });
+  }
+
+  function saveWeeklyCardOrderFromDom(){
+    document.querySelectorAll('.weekly-day-col').forEach(col => {
+      const dayIndex = Number(col.dataset.day);
+      col.querySelectorAll('.wtask-card').forEach((card, order) => {
+        const task = weeklyTasks.find(item => item.id === card.dataset.id);
+        if(task){
+          task.dayIndex = dayIndex;
+          task.order = order;
+        }
+      });
+    });
+    saveDataAll();
+  }
+
+  function startWeeklyTouchDrag(e, card){
+    if(e.pointerType === 'mouse' || e.target.closest('button, input, textarea, select, a')) return;
+    const sourceCol = card.closest('.weekly-day-col');
+    const sourceContainer = card.closest('.wtask-container');
+    if(!sourceCol || !sourceContainer) return;
+
+    e.preventDefault();
+    weeklyTouchDrag = {
+      pointerId: e.pointerId,
+      card,
+      sourceCol,
+      sourceContainer,
+      sourceNext: card.nextElementSibling,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false
+    };
+    card.setPointerCapture?.(e.pointerId);
+  }
+
+  function moveWeeklyTouchDrag(e){
+    const state = weeklyTouchDrag;
+    if(!state || state.pointerId !== e.pointerId) return;
+    const distance = Math.abs(e.clientX - state.startX) + Math.abs(e.clientY - state.startY);
+    if(distance <= 6) return;
+
+    state.moved = true;
+    state.card.classList.add('opacity-40');
+    state.card.style.pointerEvents = 'none';
+    const underneath = document.elementFromPoint(e.clientX, e.clientY);
+    const targetCol = underneath?.closest('.weekly-day-col');
+    if(!targetCol) return;
+
+    clearWeeklyDragHighlights();
+    targetCol.classList.add('bg-indigo-500/10', 'border-indigo-500/40');
+    const targetContainer = targetCol.querySelector('.wtask-container');
+    if(!targetContainer) return;
+    targetContainer.querySelector('.weekly-empty-state')?.remove();
+    const afterElement = getDragAfterElement(targetContainer, e.clientY);
+    if(afterElement) targetContainer.insertBefore(state.card, afterElement);
+    else targetContainer.appendChild(state.card);
+  }
+
+  function finishWeeklyTouchDrag(e, cancelled = false){
+    const state = weeklyTouchDrag;
+    if(!state || state.pointerId !== e.pointerId) return;
+    state.card.classList.remove('opacity-40');
+    state.card.style.pointerEvents = '';
+    clearWeeklyDragHighlights();
+
+    if(cancelled && state.moved){
+      if(state.sourceNext?.parentElement === state.sourceContainer) state.sourceContainer.insertBefore(state.card, state.sourceNext);
+      else state.sourceContainer.appendChild(state.card);
+    }
+    if(state.moved && !cancelled){
+      saveWeeklyCardOrderFromDom();
+      renderWeeklyProgram();
+    }
+    weeklyTouchDrag = null;
+  }
+
+  document.addEventListener('pointermove', (e) => {
+    if(!weeklyTouchDrag || weeklyTouchDrag.pointerId !== e.pointerId) return;
+    e.preventDefault();
+    moveWeeklyTouchDrag(e);
+  }, { passive:false });
+  document.addEventListener('pointerup', (e) => finishWeeklyTouchDrag(e));
+  document.addEventListener('pointercancel', (e) => finishWeeklyTouchDrag(e, true));
+
   function renderWeeklyProgram(){
     const grid = document.getElementById('weeklyDaysGrid');
     grid.innerHTML = '';
@@ -1743,7 +1897,7 @@
       const doneCount = dayTasks.filter(t => t.isDone).length;
       
       const col = document.createElement('div');
-      col.className = "bg-slate-900/40 border border-white/10 rounded-2xl p-4 flex flex-col gap-3 min-h-[720px] backdrop-blur-md transition-colors duration-200";
+      col.className = "weekly-day-col bg-slate-900/40 border border-white/10 rounded-2xl p-4 flex flex-col gap-3 min-h-[720px] backdrop-blur-md transition-colors duration-200";
       col.dataset.day = dayIdx;
 
       // Sürükle-Bırak Olayları (Gün içi ve arası reorder dahil)
@@ -1770,27 +1924,13 @@
       col.addEventListener('drop', (e) => {
         e.preventDefault();
         col.classList.remove('bg-indigo-500/10', 'border-indigo-500/40');
-        
-        const container = col.querySelector('.wtask-container');
-        if (container) {
-          const taskElements = container.querySelectorAll('.wtask-card');
-          taskElements.forEach((el, index) => {
-            const task = weeklyTasks.find(t => t.id === el.dataset.id);
-            if (task) {
-              task.dayIndex = dayIdx;
-              task.order = index; // Yeni sıralamayı kaydet
-            }
-          });
-          
-          weeklyTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
-          saveDataAll();
-          renderWeeklyProgram(); // Durumu tazelemek ve done sayılarını düzeltmek için
-        }
+        saveWeeklyCardOrderFromDom();
+        renderWeeklyProgram();
       });
 
       let cardsHtml = '';
       if(dayTasks.length === 0){
-        cardsHtml = `<div class="text-[11px] text-slate-500 text-center py-12 border border-dashed border-white/10 rounded-xl">Görev yok</div>`;
+        cardsHtml = `<div class="weekly-empty-state text-[11px] text-slate-500 text-center py-12 border border-dashed border-white/10 rounded-xl">Görev yok</div>`;
       } else {
         dayTasks.forEach(task => {
           const cardGrad = colorGradFor({ color: task.color || 'emerald' });
@@ -1840,6 +1980,7 @@
         card.addEventListener('dragend', () => {
           card.classList.remove('opacity-40');
         });
+        card.addEventListener('pointerdown', (e) => startWeeklyTouchDrag(e, card));
       });
 
       col.querySelectorAll('.toggle-wtask-btn').forEach(btn => {
